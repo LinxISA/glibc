@@ -1,0 +1,12 @@
+# Local preconfigure fragment for sysdeps/linx.
+
+case "$machine" in
+linx64)
+  base_machine=linx
+  machine=linx/linx64
+  ;;
+linx32)
+  base_machine=linx
+  machine=linx/linx32
+  ;;
+esac

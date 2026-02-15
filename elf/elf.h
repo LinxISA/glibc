@@ -353,7 +353,9 @@ typedef struct
 #define EM_FT32		222	/* FTDI Chip FT32 */
 #define EM_MOXIE	223	/* Moxie processor */
 #define EM_AMDGPU	224	/* AMD GPU */
-				/* reserved 225-242 */
+			/* reserved 225-232 */
+#define EM_LINXISA	233	/* LinxISA */
+			/* reserved 234-242 */
 #define EM_RISCV	243	/* RISC-V */
 
 #define EM_BPF		247	/* Linux BPF -- in-kernel virtual machine */
