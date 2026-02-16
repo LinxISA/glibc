@@ -86,7 +86,13 @@ extern int sanity_check_heap_info_alignment[(sizeof (heap_info)
 
 /* Thread specific data.  */
 
+#if defined __LINX__
+/* Bring-up fallback: process-global arena pointer until Linx TLS/PIC
+   relocation support is complete.  */
+static mstate thread_arena;
+#else
 static __thread mstate thread_arena attribute_tls_model_ie;
+#endif
 
 /* Arena free list.  free_list_lock synchronizes access to the
    free_list variable below, and the next_free and attached_threads

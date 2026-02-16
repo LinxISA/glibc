@@ -85,7 +85,11 @@ static struct dl_action_result *const dl_action_result_malloc_failed
 
 /* Thread-local variable for storing dlfcn failures for subsequent
    reporting via dlerror.  */
+#if defined __LINX__
+extern struct dl_action_result *__libc_dlerror_result;
+#else
 extern __thread struct dl_action_result *__libc_dlerror_result
   attribute_tls_model_ie;
+#endif
 
 #endif /* _DLERROR_H */

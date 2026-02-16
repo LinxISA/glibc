@@ -2926,8 +2926,15 @@ static const union
 /* TCACHE is never NULL; it's either "live" or points to one of the
    above dummy entries.  The dummy entries are all zero so act like an
    empty/unusable tcache.  */
+#if defined __LINX__
+/* Bring-up fallback: process-global tcache pointer until Linx TLS/PIC
+   relocation support is complete.  */
+static tcache_perthread_struct *tcache =
+  (tcache_perthread_struct *) &__tcache_dummy.inactive;
+#else
 static __thread tcache_perthread_struct *tcache =
   (tcache_perthread_struct *) &__tcache_dummy.inactive;
+#endif
 
 /* This is the default, and means "check to see if a real tcache
    should be allocated."  */

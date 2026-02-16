@@ -1,5 +1,4 @@
-/* Definition of `errno' variable.  Canonical version.
-   Copyright (C) 2002-2026 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2026 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -16,27 +15,28 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-#include <errno.h>
-#include <tls.h>
-#include <dl-sysdep.h>
-#undef errno
-
-#if RTLD_PRIVATE_ERRNO
-
-/* Code compiled for rtld refers only to this name.  */
-int rtld_errno attribute_hidden;
-
-#else
-
-#if defined __LINX__
-/* Bring-up fallback: until Linx TLS relocations are complete, keep errno
-   process-global so libc.so can link in PIC mode.  */
-int errno;
-extern int __libc_errno __attribute__ ((alias ("errno"))) attribute_hidden;
-#else
-__thread int errno;
-extern __thread int __libc_errno __attribute__ ((alias ("errno")))
-  attribute_hidden;
+#ifndef _FENV_H
+# error "Never use <bits/fenv.h> directly; include <fenv.h> instead."
 #endif
 
+/* Linx bring-up baseline:
+   - No floating-point exception flags are exposed yet.
+   - No selectable rounding modes are exposed yet.
+   glibc still requires FE_TONEAREST to represent the default mode.  */
+#define FE_ALL_EXCEPT 0
+#define FE_TONEAREST 0
+
+typedef unsigned int fexcept_t;
+
+typedef struct
+{
+  fexcept_t __excepts;
+}
+fenv_t;
+
+#define FE_DFL_ENV ((const fenv_t *) -1l)
+
+#if __GLIBC_USE (IEC_60559_BFP_EXT_C23)
+typedef unsigned int femode_t;
+# define FE_DFL_MODE ((const femode_t *) -1L)
 #endif

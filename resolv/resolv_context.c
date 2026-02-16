@@ -49,7 +49,13 @@
    implement the res_n* functions in the resolver, and those do not
    call back into user code which could indirectly use the per-thread
    resolver state.  */
+#if defined __LINX__
+/* Bring-up fallback: process-global resolver context until Linx TLS/PIC
+   relocations are complete.  */
+static struct resolv_context *current;
+#else
 static __thread struct resolv_context *current attribute_tls_model_ie;
+#endif
 
 /* The resolv_conf handling will gives us a ctx->conf pointer even if
    these fields do not match because a mismatch does not cause a loss

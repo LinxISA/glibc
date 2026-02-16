@@ -22,16 +22,14 @@
 
 #include <bits/wordsize.h>
 
-/* Bring-up layout: save integer GPRs plus PC.
+/* Linx ABI layout: save call-preserved integer state.
 
-   Linx ISA currently defines 24 architectural integer registers (R0..R23)
-   and a program counter.  R0 is hard-wired zero but we reserve a slot for a
-   stable layout.
-
-   Once the Linx ABI finalizes the set of call-preserved registers, this can
-   be reduced to the minimum required set.  */
+   Saved slots:
+   - s0..s8
+   - sp
+   - ra  */
 #if __WORDSIZE == 64
-typedef long int __jmp_buf[25];
+typedef long int __jmp_buf[11];
 #else
-typedef int __jmp_buf[25];
+typedef int __jmp_buf[11];
 #endif

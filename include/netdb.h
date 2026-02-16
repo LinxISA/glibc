@@ -11,7 +11,11 @@
 #  else
 #   define h_errno __h_errno
 #  endif
+#  if defined __LINX__
+extern int h_errno;
+#  else
 extern __thread int h_errno attribute_tls_model_ie;
+#  endif
 # endif /* IS_IN_LIB */
 # define __set_h_errno(x) (h_errno = (x))
 

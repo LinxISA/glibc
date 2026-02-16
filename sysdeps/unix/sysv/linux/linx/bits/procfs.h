@@ -10,10 +10,8 @@
 /* General-purpose register type. */
 typedef unsigned long int elf_greg_t;
 
-/* General-purpose register set.
-   LinxISA currently models 24 architectural GPRs (R0-R23) in the bring-up ABI.
-   Keep extra slots for future expansion and for debugger friendliness.  */
-typedef elf_greg_t elf_gregset_t[32];
+/* General-purpose register set: user_pt_regs (R0..R23 + PC).  */
+typedef elf_greg_t elf_gregset_t[25];
 
 /* Floating-point register set (placeholder for bring-up).  */
 typedef struct
@@ -22,4 +20,3 @@ typedef struct
 } elf_fpregset_t;
 
 #endif /* _LINX_BITS_PROCFS_H */
-

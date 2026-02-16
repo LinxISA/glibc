@@ -82,12 +82,34 @@ typedef struct
 # define TLS_DEFINE_INIT_TP(tp, pd) \
   void *tp = (void *) (pd) + TLS_TCB_OFFSET + TLS_PRE_TCB_SIZE
 
-/* libthread_db support is not yet implemented for LinxISA bring-up.  */
-# define DB_THREAD_SELF 0
+/* libthread_db support is not yet implemented for LinxISA bring-up.
+   Keep DB_THREAD_SELF undefined so nptl_db does not attempt to emit
+   register descriptors for an ABI that is not finalized yet.  */
 
 # include <tcb-access.h>
 
 # define NO_TLS_OFFSET -1
+
+/* Get and set the global scope generation counter in struct pthread.  */
+# define THREAD_GSCOPE_FLAG_UNUSED 0
+# define THREAD_GSCOPE_FLAG_USED   1
+# define THREAD_GSCOPE_FLAG_WAIT   2
+# define THREAD_GSCOPE_RESET_FLAG() \
+  do                                                                    \
+    { int __res                                                         \
+        = atomic_exchange_release (&THREAD_SELF->header.gscope_flag,    \
+                                   THREAD_GSCOPE_FLAG_UNUSED);          \
+      if (__res == THREAD_GSCOPE_FLAG_WAIT)                             \
+        lll_futex_wake (&THREAD_SELF->header.gscope_flag, 1, LLL_PRIVATE); \
+    }                                                                   \
+  while (0)
+# define THREAD_GSCOPE_SET_FLAG() \
+  do                                                                    \
+    {                                                                   \
+      THREAD_SELF->header.gscope_flag = THREAD_GSCOPE_FLAG_USED;        \
+      atomic_write_barrier ();                                          \
+    }                                                                   \
+  while (0)
 
 #endif /* !__ASSEMBLER__ */
 
