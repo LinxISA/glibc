@@ -18,7 +18,11 @@
 # if IS_IN (libc)
 #  define __resp __libc_resp
 # endif
+# if defined __LINX__
+extern struct __res_state *__resp;
+# else
 extern __thread struct __res_state *__resp attribute_tls_model_ie;
+# endif
 # undef _res
 # define _res (*__resp)
 

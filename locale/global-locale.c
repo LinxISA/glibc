@@ -61,4 +61,10 @@ struct __locale_struct _nl_global_locale attribute_hidden =
 #include <tls.h>
 
 /* The tsd macros don't permit an initializer.  */
+#if defined __LINX__
+/* Bring-up fallback: process-global locale cache until Linx TLS relocations
+   are fully supported for shared libc.  */
+locale_t __libc_tsd_LOCALE = &_nl_global_locale;
+#else
 __thread locale_t __libc_tsd_LOCALE = &_nl_global_locale;
+#endif

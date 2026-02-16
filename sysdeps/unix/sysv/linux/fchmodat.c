@@ -96,10 +96,14 @@ fchmodat (int fd, const char *file, mode_t mode, int flag)
   if (flag == 0)
     return INLINE_SYSCALL_CALL (fchmodat, fd, file, mode);
 
+# ifdef __NR_fchmodat2
   int r = INLINE_SYSCALL_CALL (fchmodat2, fd, file, mode, flag);
   if (r != 0 && errno == ENOSYS)
     return fchmodat_fallback (fd, file, mode, flag);
   return r;
+# else
+  return fchmodat_fallback (fd, file, mode, flag);
+# endif
 #endif
 }
 libc_hidden_def (fchmodat)

@@ -1,4 +1,5 @@
-/* Copyright (C) 1996-2026 Free Software Foundation, Inc.
+/* Linx rtld fallback barrier symbol.
+   Copyright (C) 2026 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,27 +13,11 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, see
+   License along with the GNU C Library.  If not, see
    <https://www.gnu.org/licenses/>.  */
 
-#include <features.h>
-#include <netdb.h>
-#undef h_errno
+#include <sysdep.h>
 
-#include <tls.h>
-
-/* We need to have the error status variable of the resolver
-   accessible in the libc.  */
-
-#if defined __LINX__
-/* Bring-up fallback: process-global h_errno until Linx TLS/PIC relocations
-   are complete.  */
-int __h_errno;
-extern int __libc_h_errno __attribute__ ((alias ("__h_errno")))
-  attribute_hidden;
-#else
-__thread int __h_errno;
-extern __thread int __libc_h_errno __attribute__ ((alias ("__h_errno")))
-  attribute_hidden;
-#endif
-#define h_errno __libc_h_errno
+ENTRY (__sync_synchronize)
+  ret
+END (__sync_synchronize)

@@ -29,12 +29,18 @@ libc_hidden_proto (toupper)
 #   define CTYPE_EXTERN_INLINE extern inline
 #  endif
 
+#  if defined __LINX__
+extern const uint16_t * __libc_tsd_CTYPE_B attribute_hidden;
+extern const int32_t * __libc_tsd_CTYPE_TOUPPER attribute_hidden;
+extern const int32_t * __libc_tsd_CTYPE_TOLOWER attribute_hidden;
+#  else
 extern __thread const uint16_t * __libc_tsd_CTYPE_B
   attribute_hidden attribute_tls_model_ie;
 extern __thread const int32_t * __libc_tsd_CTYPE_TOUPPER
   attribute_hidden attribute_tls_model_ie;
 extern __thread const int32_t * __libc_tsd_CTYPE_TOLOWER
   attribute_hidden attribute_tls_model_ie;
+#  endif
 
 
 CTYPE_EXTERN_INLINE const uint16_t ** __attribute__ ((const))

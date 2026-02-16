@@ -383,8 +383,9 @@ __old_semctl (int semid, int semnum, int cmd, ...)
       break;
     }
 
-#if defined __ASSUME_DIRECT_SYSVIPC_SYSCALLS \
-    && !defined __ASSUME_SYSVIPC_DEFAULT_IPC_64
+#if (defined __ASSUME_DIRECT_SYSVIPC_SYSCALLS \
+     && !defined __ASSUME_SYSVIPC_DEFAULT_IPC_64) \
+    || !defined __NR_ipc
  /* For architectures that have wire-up semctl but also have __IPC_64 to a
     value different than default (0x0) it means the compat symbol used the
     __NR_ipc syscall.  */

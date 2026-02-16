@@ -91,9 +91,17 @@ res_init (void)
 struct __res_state _res;
 
 #undef __resp
+#if defined __LINX__
+/* Bring-up fallback: process-global resolver state pointer until Linx
+   TLS/PIC relocations are complete.  */
+struct __res_state *__resp = &_res;
+extern struct __res_state *__libc_resp
+  __attribute__ ((alias ("__resp"))) attribute_hidden;
+#else
 __thread struct __res_state *__resp = &_res;
 extern __thread struct __res_state *__libc_resp
   __attribute__ ((alias ("__resp"))) attribute_hidden;
+#endif
 
 #include <shlib-compat.h>
 

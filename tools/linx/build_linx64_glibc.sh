@@ -13,6 +13,15 @@ INSTALL_DIR="${INSTALL_DIR:-$OUT_ROOT/install}"
 LOG_DIR="${LOG_DIR:-$OUT_ROOT/logs}"
 SUMMARY="${SUMMARY:-$LOG_DIR/summary.txt}"
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 8)}"
+FALLBACK_LIB_DIR="${FALLBACK_LIB_DIR:-$OUT_ROOT/fallback-libs}"
+FALLBACK_LIBGCC="${FALLBACK_LIBGCC:-$FALLBACK_LIB_DIR/libgcc.a}"
+FALLBACK_LIBGCC_EH="${FALLBACK_LIBGCC_EH:-$FALLBACK_LIB_DIR/libgcc_eh.a}"
+FALLBACK_CRTBEGINS="${FALLBACK_CRTBEGINS:-$FALLBACK_LIB_DIR/crtbeginS.o}"
+FALLBACK_CRTENDS="${FALLBACK_CRTENDS:-$FALLBACK_LIB_DIR/crtendS.o}"
+FALLBACK_SRC_ROOT="${FALLBACK_SRC_ROOT:-$REPO_ROOT/avs/runtime/freestanding}"
+FALLBACK_SOFTFP_SRC="${FALLBACK_SOFTFP_SRC:-$FALLBACK_SRC_ROOT/src/softfp/softfp.c}"
+FALLBACK_ATOMIC_SRC="${FALLBACK_ATOMIC_SRC:-$FALLBACK_SRC_ROOT/src/atomic/atomic_builtins.c}"
+FALLBACK_INC_DIR="${FALLBACK_INC_DIR:-$FALLBACK_SRC_ROOT/include}"
 
 SYSROOT="${SYSROOT:-/Users/zhoubot/sysroots/linx64-linux-gnu}"
 LINUX_HEADERS="${LINUX_HEADERS:-$OUT_ROOT/linux-headers/include}"
@@ -40,7 +49,7 @@ MAKE_TARGETS="${MAKE_TARGETS:-csu/subdir_lib}"
 CONFIG_LOG="${CONFIG_LOG:-$LOG_DIR/02-configure.log}"
 BUILD_LOG="${BUILD_LOG:-$LOG_DIR/03-make.log}"
 
-mkdir -p "$BUILD_DIR" "$INSTALL_DIR" "$LOG_DIR"
+mkdir -p "$BUILD_DIR" "$INSTALL_DIR" "$LOG_DIR" "$FALLBACK_LIB_DIR"
 
 if [[ ! -x "$CLANG" ]]; then
   echo "error: clang not found: $CLANG" >&2
@@ -79,6 +88,52 @@ TOOL_WRAP_DIR="$BUILD_DIR/.toolwrap"
 HOST_SHIM_DIR="$BUILD_DIR/.host-tools"
 mkdir -p "$TOOL_WRAP_DIR" "$HOST_SHIM_DIR"
 
+# Provide a deterministic fallback libgcc archive for toolchains that only
+# ship Clang/LLD binaries without a GCC runtime layout.
+if [[ ! -f "$FALLBACK_LIBGCC" ]]; then
+  if [[ -f "$FALLBACK_SOFTFP_SRC" && -f "$FALLBACK_ATOMIC_SRC" && -d "$FALLBACK_INC_DIR" ]]; then
+    SOFTFP_OBJ="$FALLBACK_LIB_DIR/softfp.o"
+    ATOMIC_OBJ="$FALLBACK_LIB_DIR/atomic_builtins.o"
+
+    "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+      -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
+      -I"$FALLBACK_INC_DIR" \
+      -c "$FALLBACK_SOFTFP_SRC" -o "$SOFTFP_OBJ"
+    "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+      -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
+      -I"$FALLBACK_INC_DIR" \
+      -c "$FALLBACK_ATOMIC_SRC" -o "$ATOMIC_OBJ"
+    "$AR_BIN" cr "$FALLBACK_LIBGCC" "$SOFTFP_OBJ" "$ATOMIC_OBJ"
+    "$RANLIB_BIN" "$FALLBACK_LIBGCC"
+  else
+    "$AR_BIN" cr "$FALLBACK_LIBGCC"
+    "$RANLIB_BIN" "$FALLBACK_LIBGCC"
+  fi
+fi
+
+if [[ ! -f "$FALLBACK_LIBGCC_EH" ]]; then
+  cp -f "$FALLBACK_LIBGCC" "$FALLBACK_LIBGCC_EH"
+  "$RANLIB_BIN" "$FALLBACK_LIBGCC_EH"
+fi
+
+if [[ ! -f "$FALLBACK_CRTBEGINS" ]]; then
+  cat > "$FALLBACK_LIB_DIR/crtbeginS.c" <<'EOF'
+void *__dso_handle = &__dso_handle;
+EOF
+  "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+    -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
+    -c "$FALLBACK_LIB_DIR/crtbeginS.c" -o "$FALLBACK_CRTBEGINS"
+fi
+
+if [[ ! -f "$FALLBACK_CRTENDS" ]]; then
+  cat > "$FALLBACK_LIB_DIR/crtendS.c" <<'EOF'
+char __linx_crtend_anchor;
+EOF
+  "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+    -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
+    -c "$FALLBACK_LIB_DIR/crtendS.c" -o "$FALLBACK_CRTENDS"
+fi
+
 ln -sf "$GMAKE_BIN" "$HOST_SHIM_DIR/gnumake"
 ln -sf "$GSED_BIN" "$HOST_SHIM_DIR/sed"
 
@@ -88,6 +143,7 @@ set -eo pipefail
 CLANG_BIN="$CLANG"
 TARGET="$TARGET"
 SYSROOT="$SYSROOT"
+FALLBACK_LIB_DIR="$FALLBACK_LIB_DIR"
 link=1
 for a in "\$@"; do
   case "\$a" in
@@ -98,7 +154,7 @@ for a in "\$@"; do
 done
 extra=()
 if [[ \$link -eq 1 ]]; then
-  extra+=("-fuse-ld=lld")
+  extra+=("-fuse-ld=lld" "-L\$FALLBACK_LIB_DIR" "-B\$FALLBACK_LIB_DIR")
 fi
 exec "\$CLANG_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" "\${extra[@]}" "\$@"
 WRAP
@@ -110,6 +166,7 @@ set -eo pipefail
 CLANGXX_BIN="$CLANGXX"
 TARGET="$TARGET"
 SYSROOT="$SYSROOT"
+FALLBACK_LIB_DIR="$FALLBACK_LIB_DIR"
 link=1
 for a in "\$@"; do
   case "\$a" in
@@ -120,11 +177,52 @@ for a in "\$@"; do
 done
 extra=()
 if [[ \$link -eq 1 ]]; then
-  extra+=("-fuse-ld=lld")
+  extra+=("-fuse-ld=lld" "-L\$FALLBACK_LIB_DIR" "-B\$FALLBACK_LIB_DIR")
 fi
 exec "\$CLANGXX_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" "\${extra[@]}" "\$@"
 WRAP
 chmod +x "$TOOL_WRAP_DIR/linx-clang++"
+
+repair_degenerate_stamp_os() {
+  local subdir="$1"
+  local stamp_o="$BUILD_DIR/$subdir/stamp.o"
+  local stamp_os="$BUILD_DIR/$subdir/stamp.os"
+  local repaired=()
+  local entry base
+
+  [[ -f "$stamp_o" && -f "$stamp_os" ]] || return 0
+
+  # Some Linx bring-up builds generate stamp.os with only .oS entries.
+  # Reconstruct the PIC object list from stamp.o to keep rtld/libc_pic complete.
+  if tr ' ' '\n' < "$stamp_os" | grep -q '\.os$'; then
+    return 0
+  fi
+
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    if [[ "$entry" == *.o ]]; then
+      base="${entry%.o}"
+    elif [[ "$entry" == *.oS ]]; then
+      base="${entry%.oS}"
+    else
+      continue
+    fi
+
+    if [[ -f "$BUILD_DIR/$base.os" ]]; then
+      repaired+=("$base.os")
+    elif [[ -f "$BUILD_DIR/$base.oS" ]]; then
+      repaired+=("$base.oS")
+    fi
+  done < <(tr ' ' '\n' < "$stamp_o")
+
+  if [[ ${#repaired[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  printf '%s ' "${repaired[@]}" > "$stamp_os"
+  printf '\n' >> "$stamp_os"
+  echo "[G1] repaired $subdir/stamp.os from stamp.o (${#repaired[@]} entries)" >> "$BUILD_LOG"
+}
 
 echo "[glibc] target: $TARGET" | tee "$SUMMARY"
 echo "[glibc] source: $GLIBC_ROOT" | tee -a "$SUMMARY"
@@ -175,9 +273,39 @@ fi
 
 echo "[G1] configure passed" | tee -a "$SUMMARY"
 
+# Avoid stale archive members from prior failed/incremental runs.
+rm -f \
+  "$BUILD_DIR/libc_pic.a" \
+  "$BUILD_DIR/libc_nonshared.a" \
+  "$BUILD_DIR/elf/rtld-libc.a" \
+  "$BUILD_DIR/elf/librtld.os"
+
 set +e
-gnumake -j"$JOBS" $MAKE_TARGETS >"$BUILD_LOG" 2>&1
-mk_rc=$?
+mk_rc=0
+for target in $MAKE_TARGETS; do
+  if [[ "$target" == "lib" ]]; then
+    echo "[G1] gnumake prewarm start: nptl/subdir_lib stdlib/subdir_lib debug/subdir_lib" >>"$BUILD_LOG"
+    gnumake -j"$JOBS" nptl/subdir_lib stdlib/subdir_lib debug/subdir_lib >>"$BUILD_LOG" 2>&1
+    rc=$?
+    echo "[G1] gnumake prewarm done: rc=$rc" >>"$BUILD_LOG"
+    if [[ $rc -ne 0 ]]; then
+      mk_rc=$rc
+      break
+    fi
+    repair_degenerate_stamp_os "nptl"
+    repair_degenerate_stamp_os "stdlib"
+    repair_degenerate_stamp_os "debug"
+  fi
+
+  echo "[G1] gnumake target start: $target" >>"$BUILD_LOG"
+  gnumake -j"$JOBS" "$target" >>"$BUILD_LOG" 2>&1
+  rc=$?
+  echo "[G1] gnumake target done: $target rc=$rc" >>"$BUILD_LOG"
+  if [[ $rc -ne 0 ]]; then
+    mk_rc=$rc
+    break
+  fi
+done
 set -e
 
 if [[ $mk_rc -ne 0 ]]; then

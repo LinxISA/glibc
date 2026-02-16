@@ -28,7 +28,13 @@ extern int rtld_errno attribute_hidden;
 #  else
 #   define errno errno		/* For #ifndef errno tests.  */
 #  endif
+#  if defined __LINX__
+/* Bring-up fallback: keep internal errno process-global until Linx TLS
+   relocation support is fully wired.  */
+extern int errno;
+#  else
 extern __thread int errno attribute_tls_model_ie;
+#  endif
 
 # endif	/* IS_IN_LIB */
 

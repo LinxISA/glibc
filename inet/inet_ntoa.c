@@ -23,7 +23,13 @@
 /* The interface of this function is completely stupid, it requires a
    static buffer.  We relax this a bit in that we allow one buffer for
    each thread.  */
+#if defined __LINX__
+/* Bring-up fallback: process-global inet_ntoa buffer until Linx TLS/PIC
+   relocations are complete.  */
+static char buffer[INET_ADDRSTRLEN];
+#else
 static __thread char buffer[INET_ADDRSTRLEN];
+#endif
 
 
 char *

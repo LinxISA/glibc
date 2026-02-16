@@ -9,8 +9,14 @@
 
 /* Variable used in non-threaded applications or for the first thread.  */
 static struct rpc_thread_variables __libc_tsd_RPC_VARS_mem;
+#if defined __LINX__
+/* Bring-up fallback: process-global RPC thread vars until Linx TLS/PIC
+   relocations are complete.  */
+static struct rpc_thread_variables *thread_rpc_vars;
+#else
 static __thread struct rpc_thread_variables *thread_rpc_vars
-        attribute_tls_model_ie;
+	attribute_tls_model_ie;
+#endif
 
 /*
  * Task-variable destructor

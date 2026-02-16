@@ -24,12 +24,23 @@
    __ctype_init before user code runs, but this does not happen for
    threads in secondary namespaces.  With the initializers, secondary
    namespaces at least get locale data from the C locale.  */
+#if defined __LINX__
+/* Bring-up fallback: process-global ctype caches until Linx TLS relocations
+   are complete for shared libc.  */
+const uint16_t * __libc_tsd_CTYPE_B
+  = (const uint16_t *) _nl_C_LC_CTYPE_class + 128;
+const int32_t * __libc_tsd_CTYPE_TOLOWER
+  = (const int32_t *) _nl_C_LC_CTYPE_tolower + 128;
+const int32_t * __libc_tsd_CTYPE_TOUPPER
+  = (const int32_t *) _nl_C_LC_CTYPE_toupper + 128;
+#else
 __thread const uint16_t * __libc_tsd_CTYPE_B attribute_tls_model_ie
   = (const uint16_t *) _nl_C_LC_CTYPE_class + 128;
 __thread const int32_t * __libc_tsd_CTYPE_TOLOWER attribute_tls_model_ie
   = (const int32_t *) _nl_C_LC_CTYPE_tolower + 128;
 __thread const int32_t * __libc_tsd_CTYPE_TOUPPER attribute_tls_model_ie
   = (const int32_t *) _nl_C_LC_CTYPE_toupper + 128;
+#endif
 
 
 void

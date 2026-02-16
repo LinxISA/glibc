@@ -21,7 +21,13 @@
 /* This pointer is either NULL, dl_action_result_malloc_failed (), or
    has been allocated using malloc by the namespace that also contains
    this instance of the thread-local variable.  */
+#if defined __LINX__
+/* Bring-up fallback: process-global dlerror slot until Linx TLS/PIC
+   relocation support is complete.  */
+struct dl_action_result *__libc_dlerror_result;
+#else
 __thread struct dl_action_result *__libc_dlerror_result attribute_tls_model_ie;
+#endif
 
 /* Called during thread shutdown to free resources.  */
 void

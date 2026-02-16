@@ -1,8 +1,8 @@
 /* Assembly/C macros for LinxISA Linux syscalls (bring-up).
    This file is part of the GNU C Library.
 
-   NOTE: LinxISA is a block-structured ISA. For bring-up, we model Linux-style
-   syscalls using `ebreak 15` with the following convention:
+   NOTE: LinxISA is a block-structured ISA. Linux-style syscalls use
+   `acrc 1` with the following convention:
      a7 = syscall number
      a0..a5 = args
      a0 = return value (negative errno in range [-4095, -1] on error)
@@ -22,11 +22,13 @@
 
 /* We intentionally keep the assembler side minimal for bring-up. */
 
+#undef ENTRY
 #define ENTRY(name)            \
   .globl name;                \
   .type  name, @function;     \
 name:
 
+#undef END
 #define END(name)              \
   .size name, .-name
 
@@ -41,11 +43,12 @@ name:
   ENTRY (name);                                                 \
   /* a7 = syscall number */                                     \
   addiw zero, SYS_ify (syscall_name), ->a7;                     \
-  ebreak 15;                                                    \
+  acrc 1;                                                       \
   /* errors are returned as -errno in a0 */                     \
   addiw zero, -4096, ->a7;                                      \
   /* if a0 > -4096 then error */                                \
-  bgtu a0, a7, .Lsyscall_error##name;
+  C.BSTART COND, .Lsyscall_error##name;                         \
+  setc.ltu a7, a0;
 
 #undef PSEUDO_END
 #define PSEUDO_END(name)                                        \
@@ -60,7 +63,7 @@ name:
   .align 2;                                                     \
   ENTRY (name);                                                 \
   addiw zero, SYS_ify (syscall_name), ->a7;                     \
-  ebreak 15;
+  acrc 1;
 
 #undef PSEUDO_END_NOERRNO
 #define PSEUDO_END_NOERRNO(name) END (name)
@@ -74,12 +77,15 @@ name:
 #define PSEUDO_END_ERRVAL(name) END (name)
 
 #undef ret_NOERRNO
-#define ret_NOERRNO ret
+#define ret_NOERRNO C.BSTART.STD RET
 #undef ret_ERRVAL
-#define ret_ERRVAL ret
+#define ret_ERRVAL C.BSTART.STD RET
+#undef ret
+#define ret C.BSTART.STD RET
 
 #else /* !__ASSEMBLER__ */
 
+#undef HAVE_INTERNAL_BRK_ADDR_SYMBOL
 #define HAVE_INTERNAL_BRK_ADDR_SYMBOL 1
 
 #define INTERNAL_SYSCALL(name, nr, args...) \
@@ -88,8 +94,8 @@ name:
 #define INTERNAL_SYSCALL_NCS(number, nr, args...) \
   internal_syscall##nr (number, args)
 
-/* LinxISA uses `ebreak 15` for bring-up syscalls. */
-#define __SYSCALL_INSN "ebreak 15\n\t"
+/* LinxISA Linux userspace syscall trap. */
+#define __SYSCALL_INSN "acrc 1\n\t"
 #define __SYSCALL_CLOBBERS "memory"
 
 #define internal_syscall0(number, dummy...)                             \
@@ -240,4 +246,3 @@ extern long int __syscall_error (long int neg_errno);
 #endif /* !__ASSEMBLER__ */
 
 #endif /* _LINUX_LINX_SYSDEP_H */
-
