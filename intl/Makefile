@@ -141,6 +141,11 @@ CFLAGS-tst-gettext4.c += -DOBJPFX=\"$(objpfx)\"
 CFLAGS-tst-gettext5.c += -DOBJPFX=\"$(objpfx)\"
 CFLAGS-tst-gettext6.c += -DOBJPFX=\"$(objpfx)\"
 
+# Linx LLVM bring-up: avoid vectorized bswap patterns that are not yet
+# selected in the backend for gettext hot paths.
+CFLAGS-dcigettext.c += -fno-vectorize -fno-slp-vectorize
+CFLAGS-loadmsgcat.c += -fno-vectorize -fno-slp-vectorize
+
 ifeq ($(have-thread-library),yes)
 ifeq (yes,$(build-shared))
 $(addprefix $(objpfx),$(multithread-test-srcs)): $(shared-thread-library)
