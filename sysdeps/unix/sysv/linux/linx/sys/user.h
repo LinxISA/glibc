@@ -3,6 +3,10 @@
 #ifndef _SYS_USER_H
 #define _SYS_USER_H 1
 
+/* Prefer kernel UAPI register layout when available to keep ptrace ABI in
+   sync with the configured linux-headers set.  */
+#include <asm/ptrace.h>
+
 struct user_pt_regs
 {
   unsigned long regs[25];
