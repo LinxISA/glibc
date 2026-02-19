@@ -224,6 +224,31 @@ repair_degenerate_stamp_os() {
   echo "[G1] repaired $subdir/stamp.os from stamp.o (${#repaired[@]} entries)" >> "$BUILD_LOG"
 }
 
+run_make_with_stamp_retry() {
+  local label="$1"
+  local safe_label
+  shift
+  local tmp_log
+  local rc
+  safe_label="${label//\//_}"
+  safe_label="${safe_label//[^A-Za-z0-9_.-]/_}"
+  tmp_log="$(mktemp "${BUILD_DIR}/.gmake-${safe_label}.XXXXXX.log")"
+
+  gnumake -j"$JOBS" "$@" >"$tmp_log" 2>&1
+  rc=$?
+  cat "$tmp_log" >>"$BUILD_LOG"
+
+  if [[ $rc -ne 0 ]] && grep -Eiq "stamp\\.os: No such file|stamp\\.osT.*No such file" "$tmp_log"; then
+    echo "[G1] detected stamp race for $label; retrying serial (-j1)" >>"$BUILD_LOG"
+    gnumake -j1 "$@" >"$tmp_log" 2>&1
+    rc=$?
+    cat "$tmp_log" >>"$BUILD_LOG"
+  fi
+
+  rm -f "$tmp_log"
+  return $rc
+}
+
 echo "[glibc] target: $TARGET" | tee "$SUMMARY"
 echo "[glibc] source: $GLIBC_ROOT" | tee -a "$SUMMARY"
 echo "[glibc] build: $BUILD_DIR" | tee -a "$SUMMARY"
@@ -282,14 +307,14 @@ rm -f \
 
 set +e
 mk_rc=0
-for target in $MAKE_TARGETS; do
-  if [[ "$target" == "lib" ]]; then
-    echo "[G1] gnumake prewarm start: nptl/subdir_lib stdlib/subdir_lib debug/subdir_lib" >>"$BUILD_LOG"
-    gnumake -j"$JOBS" nptl/subdir_lib stdlib/subdir_lib debug/subdir_lib >>"$BUILD_LOG" 2>&1
-    rc=$?
-    echo "[G1] gnumake prewarm done: rc=$rc" >>"$BUILD_LOG"
-    if [[ $rc -ne 0 ]]; then
-      mk_rc=$rc
+	for target in $MAKE_TARGETS; do
+	  if [[ "$target" == "lib" ]]; then
+	    echo "[G1] gnumake prewarm start: nptl/subdir_lib stdlib/subdir_lib debug/subdir_lib" >>"$BUILD_LOG"
+	    run_make_with_stamp_retry "prewarm_lib" nptl/subdir_lib stdlib/subdir_lib debug/subdir_lib
+	    rc=$?
+	    echo "[G1] gnumake prewarm done: rc=$rc" >>"$BUILD_LOG"
+	    if [[ $rc -ne 0 ]]; then
+	      mk_rc=$rc
       break
     fi
     repair_degenerate_stamp_os "nptl"
@@ -297,10 +322,10 @@ for target in $MAKE_TARGETS; do
     repair_degenerate_stamp_os "debug"
   fi
 
-  echo "[G1] gnumake target start: $target" >>"$BUILD_LOG"
-  gnumake -j"$JOBS" "$target" >>"$BUILD_LOG" 2>&1
-  rc=$?
-  echo "[G1] gnumake target done: $target rc=$rc" >>"$BUILD_LOG"
+	  echo "[G1] gnumake target start: $target" >>"$BUILD_LOG"
+	  run_make_with_stamp_retry "$target" "$target"
+	  rc=$?
+	  echo "[G1] gnumake target done: $target rc=$rc" >>"$BUILD_LOG"
   if [[ $rc -ne 0 ]]; then
     mk_rc=$rc
     break

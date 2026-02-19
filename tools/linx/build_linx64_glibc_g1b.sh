@@ -17,6 +17,7 @@ BASE_SCRIPT="$SCRIPT_DIR/build_linx64_glibc.sh"
 BASE_SUMMARY="${GLIBC_G1A_SUMMARY:-$LOG_DIR/summary.txt}"
 BASE_LOG="${GLIBC_G1A_LOG:-$LOG_DIR/03-make.log}"
 G1B_BUILD_LOG="${G1B_BUILD_LOG:-$LOG_DIR/g1b-build.log}"
+G1B_RETRY_LOG="${G1B_RETRY_LOG:-$LOG_DIR/g1b-build.retry.log}"
 G1B_READELF_LOG="${G1B_READELF_LOG:-$LOG_DIR/g1b-readelf.log}"
 
 mkdir -p "$LOG_DIR"
@@ -53,11 +54,37 @@ if [[ "$rc" -ne 0 ]]; then
       classification="parallel_stamp_race"
     fi
   fi
+  if [[ "$classification" == "parallel_stamp_race" ]]; then
+    echo "[G1b] retry: detected parallel stamp race, rerunning base gate with JOBS=1" | tee -a "$SUMMARY"
+    set +e
+    MAKE_TARGETS="$MAKE_TARGETS" \
+    JOBS=1 \
+    SUMMARY="$BASE_SUMMARY" \
+    BUILD_DIR="$BUILD_DIR" \
+    LOG_DIR="$LOG_DIR" \
+      bash "$BASE_SCRIPT" >"$G1B_RETRY_LOG" 2>&1
+    retry_rc=$?
+    set -e
+    if [[ "$retry_rc" -eq 0 ]]; then
+      rc=0
+      echo "[G1b] retry result: pass" | tee -a "$SUMMARY"
+    else
+      classification="parallel_stamp_race_retry_fail"
+      rc=$retry_rc
+      echo "[G1b] retry result: fail (rc=$retry_rc, log=$G1B_RETRY_LOG)" | tee -a "$SUMMARY"
+    fi
+  fi
+fi
+
+if [[ "$rc" -ne 0 ]]; then
 
   echo "[G1b] status: blocked" | tee -a "$SUMMARY"
   echo "[G1b] classification: $classification" | tee -a "$SUMMARY"
   echo "[G1b] base_make_log: $BASE_LOG" | tee -a "$SUMMARY"
   echo "[G1b] wrapper_log: $G1B_BUILD_LOG" | tee -a "$SUMMARY"
+  if [[ -f "$G1B_RETRY_LOG" ]]; then
+    echo "[G1b] retry_log: $G1B_RETRY_LOG" | tee -a "$SUMMARY"
+  fi
   echo "[G1b] base_exit_code: $rc" | tee -a "$SUMMARY"
 
   if [[ "$ALLOW_BLOCKED" == "1" ]]; then
