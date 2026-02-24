@@ -25,6 +25,9 @@ FALLBACK_INC_DIR="${FALLBACK_INC_DIR:-$FALLBACK_SRC_ROOT/include}"
 
 SYSROOT="${SYSROOT:-/Users/zhoubot/sysroots/linx64-linux-gnu}"
 LINUX_HEADERS="${LINUX_HEADERS:-$OUT_ROOT/linux-headers/include}"
+LINUX_HEADERS_INSTALL_ROOT="${LINUX_HEADERS_INSTALL_ROOT:-$OUT_ROOT/linux-headers}"
+KERNEL_ROOT="${KERNEL_ROOT:-$REPO_ROOT/kernel/linux}"
+HEADERS_LOG="${HEADERS_LOG:-$LOG_DIR/01-headers_install.log}"
 
 TOOLCHAIN_BIN="${TOOLCHAIN_BIN:-/Users/zhoubot/llvm-project/build-linxisa-clang/bin}"
 CLANG="${CLANG:-$TOOLCHAIN_BIN/clang}"
@@ -79,8 +82,22 @@ if [[ ! -x "$READELF_BIN" ]]; then
   echo "error: readelf not found: $READELF_BIN" >&2
   exit 1
 fi
-if [[ ! -d "$LINUX_HEADERS" ]]; then
-  echo "error: Linux headers not found: $LINUX_HEADERS" >&2
+
+if [[ ! -f "$LINUX_HEADERS/linux/version.h" ]]; then
+  if [[ ! -d "$KERNEL_ROOT" ]]; then
+    echo "error: Linux headers missing ($LINUX_HEADERS) and kernel tree not found: $KERNEL_ROOT" >&2
+    exit 1
+  fi
+  mkdir -p "$LINUX_HEADERS_INSTALL_ROOT" "$LOG_DIR"
+  if ! "$GMAKE_BIN" -C "$KERNEL_ROOT" ARCH=linx \
+      INSTALL_HDR_PATH="$LINUX_HEADERS_INSTALL_ROOT" \
+      headers_install >"$HEADERS_LOG" 2>&1; then
+    echo "error: failed to install Linux headers; see $HEADERS_LOG" >&2
+    exit 1
+  fi
+fi
+if [[ ! -f "$LINUX_HEADERS/linux/version.h" ]]; then
+  echo "error: Linux headers not found after headers_install: $LINUX_HEADERS" >&2
   exit 1
 fi
 
