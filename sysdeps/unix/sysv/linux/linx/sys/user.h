@@ -7,10 +7,12 @@
    sync with the configured linux-headers set.  */
 #include <asm/ptrace.h>
 
+#if !defined(_ASM_LINX_PTRACE_H) && !defined(_UAPI_ASM_LINX_PTRACE_H)
 struct user_pt_regs
 {
   unsigned long regs[25];
 };
+#endif
 
 #if !defined(_ASM_RISCV_PTRACE_H) && !defined(_ASM_LINX_PTRACE_H) \
     && !defined(_ASM_PTRACE_H)
