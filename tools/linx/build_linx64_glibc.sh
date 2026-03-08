@@ -22,6 +22,7 @@ FALLBACK_SRC_ROOT="${FALLBACK_SRC_ROOT:-$REPO_ROOT/avs/runtime/freestanding}"
 FALLBACK_SOFTFP_SRC="${FALLBACK_SOFTFP_SRC:-$FALLBACK_SRC_ROOT/src/softfp/softfp.c}"
 FALLBACK_ATOMIC_SRC="${FALLBACK_ATOMIC_SRC:-$FALLBACK_SRC_ROOT/src/atomic/atomic_builtins.c}"
 FALLBACK_INC_DIR="${FALLBACK_INC_DIR:-$FALLBACK_SRC_ROOT/include}"
+CLANG_HEADERS_DIR="${CLANG_HEADERS_DIR:-$REPO_ROOT/compiler/llvm/clang/lib/Headers}"
 
 SYSROOT="${SYSROOT:-/Users/zhoubot/sysroots/linx64-linux-gnu}"
 LINUX_HEADERS="${LINUX_HEADERS:-$OUT_ROOT/linux-headers/include}"
@@ -29,7 +30,7 @@ LINUX_HEADERS_INSTALL_ROOT="${LINUX_HEADERS_INSTALL_ROOT:-$OUT_ROOT/linux-header
 KERNEL_ROOT="${KERNEL_ROOT:-$REPO_ROOT/kernel/linux}"
 HEADERS_LOG="${HEADERS_LOG:-$LOG_DIR/01-headers_install.log}"
 
-TOOLCHAIN_BIN="${TOOLCHAIN_BIN:-/Users/zhoubot/llvm-project/build-linxisa-clang/bin}"
+TOOLCHAIN_BIN="${TOOLCHAIN_BIN:-$REPO_ROOT/compiler/llvm/build-linxisa-clang/bin}"
 CLANG="${CLANG:-$TOOLCHAIN_BIN/clang}"
 CLANGXX="${CLANGXX:-$TOOLCHAIN_BIN/clang++}"
 LD_BIN="${LD_BIN:-$TOOLCHAIN_BIN/ld.lld}"
@@ -40,6 +41,11 @@ OBJCOPY_BIN="${OBJCOPY_BIN:-$TOOLCHAIN_BIN/llvm-objcopy}"
 OBJDUMP_BIN="${OBJDUMP_BIN:-$TOOLCHAIN_BIN/llvm-objdump}"
 STRIP_BIN="${STRIP_BIN:-$TOOLCHAIN_BIN/llvm-strip}"
 READELF_BIN="${READELF_BIN:-/opt/homebrew/opt/binutils/bin/readelf}"
+
+[[ -x "$AR_BIN" ]] || AR_BIN="$(command -v llvm-ar || command -v ar || true)"
+[[ -x "$RANLIB_BIN" ]] || RANLIB_BIN="$(command -v llvm-ranlib || command -v ranlib || true)"
+[[ -x "$NM_BIN" ]] || NM_BIN="$(command -v llvm-nm || command -v nm || true)"
+[[ -x "$STRIP_BIN" ]] || STRIP_BIN="$(command -v llvm-strip || command -v strip || true)"
 
 GMAKE_BIN="${GMAKE_BIN:-/opt/homebrew/bin/gmake}"
 GSED_BIN="${GSED_BIN:-/opt/homebrew/bin/gsed}"
@@ -114,10 +120,12 @@ if [[ ! -f "$FALLBACK_LIBGCC" ]]; then
 
     "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
       -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
+      -I"$CLANG_HEADERS_DIR" \
       -I"$FALLBACK_INC_DIR" \
       -c "$FALLBACK_SOFTFP_SRC" -o "$SOFTFP_OBJ"
     "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
       -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
+      -I"$CLANG_HEADERS_DIR" \
       -I"$FALLBACK_INC_DIR" \
       -c "$FALLBACK_ATOMIC_SRC" -o "$ATOMIC_OBJ"
     "$AR_BIN" cr "$FALLBACK_LIBGCC" "$SOFTFP_OBJ" "$ATOMIC_OBJ"
@@ -161,6 +169,7 @@ CLANG_BIN="$CLANG"
 TARGET="$TARGET"
 SYSROOT="$SYSROOT"
 FALLBACK_LIB_DIR="$FALLBACK_LIB_DIR"
+CLANG_HEADERS_DIR="$CLANG_HEADERS_DIR"
 link=1
 for a in "\$@"; do
   case "\$a" in
@@ -171,9 +180,15 @@ for a in "\$@"; do
 done
 extra=()
 if [[ \$link -eq 1 ]]; then
-  extra+=("-fuse-ld=lld" "-L\$FALLBACK_LIB_DIR" "-B\$FALLBACK_LIB_DIR")
+  extra+=(
+    "-fuse-ld=lld"
+    "-rtlib=libgcc"
+    "-unwindlib=none"
+    "-L\$FALLBACK_LIB_DIR"
+    "-B\$FALLBACK_LIB_DIR"
+  )
 fi
-exec "\$CLANG_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" "\${extra[@]}" "\$@"
+exec "\$CLANG_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" -isystem "\$CLANG_HEADERS_DIR" "\${extra[@]}" "\$@"
 WRAP
 chmod +x "$TOOL_WRAP_DIR/linx-clang"
 
@@ -184,6 +199,7 @@ CLANGXX_BIN="$CLANGXX"
 TARGET="$TARGET"
 SYSROOT="$SYSROOT"
 FALLBACK_LIB_DIR="$FALLBACK_LIB_DIR"
+CLANG_HEADERS_DIR="$CLANG_HEADERS_DIR"
 link=1
 for a in "\$@"; do
   case "\$a" in
@@ -194,9 +210,15 @@ for a in "\$@"; do
 done
 extra=()
 if [[ \$link -eq 1 ]]; then
-  extra+=("-fuse-ld=lld" "-L\$FALLBACK_LIB_DIR" "-B\$FALLBACK_LIB_DIR")
+  extra+=(
+    "-fuse-ld=lld"
+    "-rtlib=libgcc"
+    "-unwindlib=none"
+    "-L\$FALLBACK_LIB_DIR"
+    "-B\$FALLBACK_LIB_DIR"
+  )
 fi
-exec "\$CLANGXX_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" "\${extra[@]}" "\$@"
+exec "\$CLANGXX_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" -isystem "\$CLANG_HEADERS_DIR" "\${extra[@]}" "\$@"
 WRAP
 chmod +x "$TOOL_WRAP_DIR/linx-clang++"
 
