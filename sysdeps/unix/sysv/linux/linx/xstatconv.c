@@ -1,0 +1,69 @@
+/* Convert between the Linx kernel's struct stat format and glibc's.
+   Copyright (C) 2026 Free Software Foundation, Inc.
+   This file is part of the GNU C Library.
+
+   The GNU C Library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
+
+   The GNU C Library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with the GNU C Library; if not, see
+   <https://www.gnu.org/licenses/>.  */
+
+#include <errno.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <kernel_stat.h>
+#include <sysdep.h>
+
+int
+__xstat_conv (int vers, struct kernel_stat *kbuf, void *ubuf)
+{
+  switch (vers)
+    {
+    case _STAT_VER_KERNEL:
+      *(struct kernel_stat *) ubuf = *kbuf;
+      break;
+
+    case _STAT_VER_LINUX:
+      {
+        struct stat *buf = ubuf;
+
+        memset (buf, 0, sizeof (*buf));
+        buf->st_dev = kbuf->st_dev;
+        buf->st_ino = kbuf->st_ino;
+        buf->st_mode = kbuf->st_mode;
+        buf->st_nlink = kbuf->st_nlink;
+        buf->st_uid = kbuf->st_uid;
+        buf->st_gid = kbuf->st_gid;
+        buf->st_rdev = kbuf->st_rdev;
+        buf->st_size = kbuf->st_size;
+        buf->st_blksize = kbuf->st_blksize;
+        buf->st_blocks = kbuf->st_blocks;
+        buf->st_atim.tv_sec = kbuf->st_atime_sec;
+        buf->st_atim.tv_nsec = kbuf->st_atime_nsec;
+        buf->st_mtim.tv_sec = kbuf->st_mtime_sec;
+        buf->st_mtim.tv_nsec = kbuf->st_mtime_nsec;
+        buf->st_ctim.tv_sec = kbuf->st_ctime_sec;
+        buf->st_ctim.tv_nsec = kbuf->st_ctime_nsec;
+      }
+      break;
+
+    default:
+      return INLINE_SYSCALL_ERROR_RETURN_VALUE (EINVAL);
+    }
+
+  return 0;
+}
+
+int
+__xstat64_conv (int vers, struct kernel_stat *kbuf, void *ubuf)
+{
+  return __xstat_conv (vers, kbuf, ubuf);
+}

@@ -41,9 +41,12 @@ name:
   .text;                                                        \
   .align 2;                                                     \
   ENTRY (name);                                                 \
+  C.BSTART.STD;                                                 \
   /* a7 = syscall number */                                     \
   addiw zero, SYS_ify (syscall_name), ->a7;                     \
   acrc 1;                                                       \
+  C.BSTOP;                                                      \
+  C.BSTART;                                                     \
   /* errors are returned as -errno in a0 */                     \
   addiw zero, -4096, ->a7;                                      \
   /* if a0 > -4096 then error */                                \
@@ -62,8 +65,10 @@ name:
   .text;                                                        \
   .align 2;                                                     \
   ENTRY (name);                                                 \
+  C.BSTART.STD;                                                 \
   addiw zero, SYS_ify (syscall_name), ->a7;                     \
-  acrc 1;
+  acrc 1;                                                       \
+  C.BSTOP;
 
 #undef PSEUDO_END_NOERRNO
 #define PSEUDO_END_NOERRNO(name) END (name)
@@ -71,6 +76,7 @@ name:
 #undef PSEUDO_ERRVAL
 #define PSEUDO_ERRVAL(name, syscall_name, args)                 \
   PSEUDO_NOERRNO (name, syscall_name, args)                     \
+  C.BSTART.STD;                                                 \
   neg a0, a0;
 
 #undef PSEUDO_END_ERRVAL
@@ -95,8 +101,8 @@ name:
   internal_syscall##nr (number, args)
 
 /* LinxISA Linux userspace syscall trap. */
-#define __SYSCALL_INSN "acrc 1\n\t"
-#define __SYSCALL_CLOBBERS "memory"
+#define __SYSCALL_INSN "acrc 1\n\tc.bstop\n\tC.BSTART\n\t"
+#define __SYSCALL_CLOBBERS "x0", "x1", "x2", "x3", "memory"
 
 #define internal_syscall0(number, dummy...)                             \
 ({                                                                      \

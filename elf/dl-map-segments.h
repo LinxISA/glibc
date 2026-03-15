@@ -18,7 +18,30 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <dl-load.h>
+#ifdef __linx__
+# include <not-cancel.h>
+#endif
 #include <setvmaname.h>
+
+#ifdef __linx__
+static __always_inline bool
+linx_dl_read_exact (int fd, void *buf, size_t len, ElfW(Off) off)
+{
+  unsigned char *p = buf;
+  size_t done = 0;
+
+  while (done < len)
+    {
+      ssize_t ret = __pread64_nocancel (fd, p + done, len - done,
+                                        (off64_t) off + done);
+      if (__glibc_unlikely (ret <= 0))
+        return false;
+      done += ret;
+    }
+
+  return true;
+}
+#endif
 
 /* Map a segment and align it properly.  */
 
@@ -81,6 +104,50 @@ _dl_map_segments (struct link_map *l, int fd,
 {
   const struct loadcmd *c = loadcmds;
 
+#ifdef __linx__
+  if (__glibc_likely (type == ET_DYN))
+    {
+      ElfW(Addr) map_start;
+
+      map_start = (ElfW(Addr)) __mmap (NULL, maplength,
+                                       PROT_READ | PROT_WRITE | PROT_EXEC,
+                                       MAP_ANON | MAP_PRIVATE, -1, 0);
+      if (__glibc_unlikely ((void *) map_start == MAP_FAILED))
+        return DL_MAP_SEGMENTS_ERROR_MAP_SEGMENT;
+
+      l->l_map_start = map_start;
+      l->l_map_end = map_start + maplength;
+      l->l_addr = map_start - c->mapstart;
+      l->l_contiguous = 1;
+
+      while (c < &loadcmds[nloadcmds])
+        {
+          if (c->mapend > c->mapstart)
+            {
+              size_t filesz = c->dataend - c->mapstart;
+              void *target = (void *) (l->l_addr + c->mapstart);
+
+              if (__glibc_unlikely
+                  (!linx_dl_read_exact (fd, target, filesz, c->mapoff)))
+                {
+                  __munmap ((void *) l->l_map_start, maplength);
+                  return DL_MAP_SEGMENTS_ERROR_MAP_SEGMENT;
+                }
+            }
+
+          _dl_postprocess_loadcmd (l, header, c);
+
+          if (c->allocend > c->dataend)
+            memset ((void *) (l->l_addr + c->dataend), '\0',
+                    c->allocend - c->dataend);
+
+          ++c;
+        }
+
+      return NULL;
+    }
+#endif
+
   if (__glibc_likely (type == ET_DYN))
     {
       /* This is a position-independent shared object.  We can let the
@@ -105,7 +172,6 @@ _dl_map_segments (struct link_map *l, int fd,
 
       l->l_map_end = l->l_map_start + maplength;
       l->l_addr = l->l_map_start - c->mapstart;
-
       if (has_holes)
         {
           /* Change protection on the excess portion to disallow all access;
@@ -124,25 +190,26 @@ _dl_map_segments (struct link_map *l, int fd,
         }
 
       l->l_contiguous = 1;
-
       goto postmap;
     }
-
-  /* Remember which part of the address space this object uses.  */
-  l->l_map_start = c->mapstart + l->l_addr;
-  l->l_map_end = l->l_map_start + maplength;
-  l->l_contiguous = !has_holes;
+  else
+    {
+      /* Remember which part of the address space this object uses.  */
+      l->l_map_start = c->mapstart + l->l_addr;
+      l->l_map_end = l->l_map_start + maplength;
+      l->l_contiguous = !has_holes;
+    }
 
   while (c < &loadcmds[nloadcmds])
     {
-      if (c->mapend > c->mapstart
+      if (c->mapend > c->mapstart)
+        {
           /* Map the segment contents from the file.  */
-          && (__mmap ((void *) (l->l_addr + c->mapstart),
-                      c->mapend - c->mapstart, c->prot,
-                      MAP_FIXED|MAP_COPY|MAP_FILE,
-                      fd, c->mapoff)
-              == MAP_FAILED))
-        return DL_MAP_SEGMENTS_ERROR_MAP_SEGMENT;
+          void *target = (void *) (l->l_addr + c->mapstart);
+          if (__mmap (target, c->mapend - c->mapstart, c->prot,
+                      MAP_COPY|MAP_FILE|MAP_FIXED, fd, c->mapoff) == MAP_FAILED)
+            return DL_MAP_SEGMENTS_ERROR_MAP_SEGMENT;
+        }
 
     postmap:
       _dl_postprocess_loadcmd (l, header, c);
@@ -185,10 +252,9 @@ _dl_map_segments (struct link_map *l, int fd,
               /* Map the remaining zero pages in from the zero fill FD.  */
               char bssname[ANON_VMA_NAME_MAX_LEN] = " glibc: .bss";
 
-              caddr_t mapat;
-              mapat = __mmap ((caddr_t) zeropage, zeroend - zeropage,
-                              c->prot, MAP_ANON|MAP_PRIVATE|MAP_FIXED,
-                              -1, 0);
+              caddr_t mapat = __mmap ((caddr_t) zeropage, zeroend - zeropage,
+                                      c->prot, MAP_ANON|MAP_PRIVATE|MAP_FIXED,
+                                      -1, 0);
               if (__glibc_unlikely (mapat == MAP_FAILED))
                 return DL_MAP_SEGMENTS_ERROR_MAP_ZERO_FILL;
               if (__is_decorate_maps_enabled ())

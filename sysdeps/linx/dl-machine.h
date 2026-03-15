@@ -30,6 +30,9 @@
 #include <dl-static-tls.h>
 #include <dl-machine-rel.h>
 
+#define LINX_STRINGIZE_1(x) #x
+#define LINX_STRINGIZE(x) LINX_STRINGIZE_1 (x)
+
 #ifndef EM_LINXISA
 # define EM_LINXISA 233
 #endif
@@ -106,16 +109,45 @@ elf_machine_dynamic (void)
 }
 
 /* Initial entry point code for the dynamic linker.
-   Bring-up fallback: provide a C entry shim until Linx rtld start asm
-   is finalized.  */
-#define RTLD_START							\
-static ElfW(Addr) _dl_start (void *arg);					\
-void __attribute__ ((used, noreturn)) ENTRY_POINT (void)			\
-{									\
-  ElfW(Addr) user_entry = _dl_start (__builtin_frame_address (0));	\
-  ((void (*) (void)) user_entry) ();					\
-  __builtin_unreachable ();						\
-}
+   The C function `_dl_start' is the real entry point; its return value
+   is the user program's entry point.  */
+#define RTLD_START asm (							\
+	".text\n\
+	.align 2\n\
+	.globl " LINX_STRINGIZE (ENTRY_POINT) "\n\
+	.hidden " LINX_STRINGIZE (ENTRY_POINT) "\n\
+	.globl _dl_start_user\n\
+	.type " LINX_STRINGIZE (ENTRY_POINT) ", @function\n\
+	.type _dl_start_user, @function\n\
+" LINX_STRINGIZE (ENTRY_POINT) ":\n\
+	C.BSTART.STD\n\
+	c.movr\tsp,\t->a0\n\
+	BSTART\tCALL, _dl_start, ra=1f\n\
+	C.BSTOP\n\
+1:\n\
+_dl_start_user:\n\
+	C.BSTART.STD\n\
+	c.movr\ta0,\t->s0\n\
+	ld\t[sp, zero],\t->a1\n\
+	addi\tsp,\t8,\t->a2\n\
+	slli\ta1,\t3,\t->a3\n\
+	add\ta2,\ta3,\t->a3\n\
+	addi\ta3,\t8,\t->a3\n\
+	addtpc\t_dl_fini,\t->s4\n\
+	addi\ts4,\t_dl_fini,\t->s4\n\
+	addtpc\t_rtld_local,\t->a0\n\
+	addi\ta0,\t_rtld_local,\t->a0\n\
+	ld\t[a0, zero],\t->a0\n\
+	BSTART\tCALL, _dl_init, ra=2f\n\
+	C.BSTOP\n\
+2:\n\
+	C.BSTART\tIND\n\
+	c.movr\ts4,\t->a0\n\
+	c.setc.tgt\ts0\n\
+	C.BSTOP\n\
+	.size " LINX_STRINGIZE (ENTRY_POINT) ", .-" LINX_STRINGIZE (ENTRY_POINT) "\n\
+	.size _dl_start_user, .-_dl_start_user\n\
+	.previous");
 
 /* Bias .got.plt entry by the offset requested by the PLT header.  */
 #define elf_machine_plt_value(map, reloc, value) (value)
@@ -238,8 +270,19 @@ elf_machine_runtime_setup (struct link_map *l, struct r_scope_elem *scope[],
 {
   (void) l;
   (void) scope;
+  (void) lazy;
   (void) profile;
-  return lazy;
+
+  /*
+   * Linx lazy PLT binding is not closed yet: .got.plt slots are emitted as
+   * zero-initialized and we do not install a resolver trampoline here. In that
+   * state, elf_machine_lazy_rel() would bias each unresolved JUMP_SLOT by
+   * l_addr and leave PLT0 targeting the object base instead of a callable
+   * resolver/symbol entry.
+   *
+   * Force eager binding until the Linx lazy PLT ABI is implemented end-to-end.
+   */
+  return 0;
 }
 
 #endif /* RESOLVE_MAP */

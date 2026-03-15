@@ -6,3 +6,10 @@
 
 #include <asm/unistd.h>
 
+/* Linx uses the regular 64-bit mmap syscall with byte offsets.  The generic
+   asm-generic UAPI also exposes __NR_mmap2 as an alias of __NR_mmap, which
+   makes glibc incorrectly select the page-shifted mmap2 ABI path.  Drop that
+   alias so the Linux common mmap code keeps offsets in bytes.  */
+#ifdef __NR_mmap2
+# undef __NR_mmap2
+#endif
