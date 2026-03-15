@@ -2246,6 +2246,15 @@ dl_main (const ElfW(Phdr) *phdr,
 
   int consider_profiling = GLRO(dl_profile) != NULL;
 
+  if (__glibc_unlikely (consider_profiling || GL(dl_profile_map) != NULL))
+    _dl_error_printf ("linx-rtld-prof-reloc: consider=%d profile=%s output=%s map=%p map_name=%s\n",
+		      consider_profiling,
+		      GLRO (dl_profile) ?: "(null)",
+		      GLRO (dl_profile_output) ?: "(null)",
+		      GL (dl_profile_map),
+		      GL (dl_profile_map) != NULL
+		      ? GL (dl_profile_map)->l_name : "(null)");
+
   /* If we are profiling we also must do lazy reloaction.  */
   GLRO(dl_lazy) |= consider_profiling;
 
@@ -2303,7 +2312,12 @@ dl_main (const ElfW(Phdr) *phdr,
      needs to have _dl_profile_map set up by the relocator.  */
   if (__glibc_unlikely (GL(dl_profile_map) != NULL))
     /* We must prepare the profiling.  */
-    _dl_start_profile ();
+    {
+      _dl_error_printf ("linx-rtld-prof-start: map=%p name=%s\n",
+			GL (dl_profile_map),
+			GL (dl_profile_map)->l_name);
+      _dl_start_profile ();
+    }
 
   if ((!was_tls_init_tp_called && GL(dl_tls_max_dtv_idx) > 0)
       || count_modids != _dl_count_modids ())
@@ -2641,7 +2655,11 @@ process_envvars_default (struct dl_main_state *state)
 
 	  /* Which shared object shall be profiled.  */
 	  if (memcmp (envline, "PROFILE", 7) == 0 && envline[8] != '\0')
-	    GLRO(dl_profile) = &envline[8];
+	    {
+	      GLRO(dl_profile) = &envline[8];
+	      _dl_error_printf ("linx-rtld-prof-env: profile=%s\n",
+				GLRO (dl_profile));
+	    }
 	  break;
 
 	case 8:
@@ -2692,7 +2710,11 @@ process_envvars_default (struct dl_main_state *state)
 	  /* Where to place the profiling data file.  */
 	  if (memcmp (envline, "PROFILE_OUTPUT", 14) == 0
 	      && envline[15] != '\0')
-	    GLRO(dl_profile_output) = &envline[15];
+	    {
+	      GLRO(dl_profile_output) = &envline[15];
+	      _dl_error_printf ("linx-rtld-prof-env: output=%s\n",
+				GLRO (dl_profile_output));
+	    }
 	  break;
 
 	case 20:
@@ -2715,6 +2737,25 @@ process_envvars_default (struct dl_main_state *state)
 warning: LD_PROFILE ignored because LD_PROFILE_OUTPUT not specified\n");
       GLRO(dl_profile) = NULL;
     }
+
+#ifdef __linx__
+  /* Linx rtld profiling is not stable yet; keep loader bring-up off this
+     lane until the profiling path is validated end-to-end.  */
+  if (GLRO(dl_profile) != NULL || GLRO(dl_profile_output) != NULL
+      || GL(dl_profile_map) != NULL)
+    _dl_error_printf ("linx-rtld-prof-disable: profile=%s output=%s map=%p\n",
+		      GLRO (dl_profile) ?: "(null)",
+		      GLRO (dl_profile_output) ?: "(null)",
+		      GL (dl_profile_map));
+  GLRO(dl_profile) = NULL;
+  GLRO(dl_profile_output) = NULL;
+  GL(dl_profile_map) = NULL;
+#endif
+
+  if (GLRO(dl_profile) != NULL || GLRO(dl_profile_output) != NULL)
+    _dl_error_printf ("linx-rtld-prof-final: profile=%s output=%s\n",
+		      GLRO (dl_profile) ?: "(null)",
+		      GLRO (dl_profile_output) ?: "(null)");
 
   /* If we have to run the dynamic linker in debugging mode and the
      LD_DEBUG_OUTPUT environment variable is given, we write the debug

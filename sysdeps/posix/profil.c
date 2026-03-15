@@ -64,6 +64,15 @@ profil_count (uintptr_t pc)
 int
 __profil (u_short *sample_buffer, size_t size, size_t offset, u_int scale)
 {
+#if IS_IN (rtld) && defined __linx__
+  /* The Linx rtld profiling lane is not closed yet. Keep ld.so startup
+     independent of SIGPROF/setup logic until profiling is validated.  */
+  (void) sample_buffer;
+  (void) size;
+  (void) offset;
+  (void) scale;
+  return 0;
+#else
   struct sigaction act;
   struct itimerval timer;
 #if !IS_IN (rtld)
@@ -121,6 +130,7 @@ __profil (u_short *sample_buffer, size_t size, size_t offset, u_int scale)
   timer.it_value.tv_usec = 1000000 / __profile_frequency ();
   timer.it_interval = timer.it_value;
   return __setitimer (ITIMER_PROF, &timer, otimer_ptr);
+#endif
 }
 weak_alias (__profil, profil)
 
