@@ -20,12 +20,11 @@
 #include <stdint.h>
 #include <unwind.h>
 
-/* Bring-up assumption: __jmp_buf stores architectural GPRs in-order
-   (R0..R23) followed by PC, so SP (R1) is slot 1.  */
+/* Layout from bits/setjmp.h / setjmp.S: s0..s8, sp, ra.  */
 static inline uintptr_t __attribute__ ((unused))
 _jmpbuf_sp (__jmp_buf regs)
 {
-  return (uintptr_t) regs[1];
+  return (uintptr_t) regs[9];
 }
 
 /* Bring-up fallback:

@@ -17,7 +17,6 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
-#include <setjmp.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -28,19 +27,6 @@ linx_rtld_barrier (void)
 {
   __asm__ __volatile__ ("" ::: "memory");
 }
-
-/* Bring-up fallback for rtld exception wrappers.
-   NOTE: this does not yet provide full architectural state save/restore.  */
-int __sigsetjmp (jmp_buf env, int savemask);
-libc_hidden_proto (__sigsetjmp)
-int
-__sigsetjmp (jmp_buf env, int savemask)
-{
-  (void) env;
-  (void) savemask;
-  return 0;
-}
-libc_hidden_def (__sigsetjmp)
 
 long __syscall_error (long err);
 hidden_proto (__syscall_error)
