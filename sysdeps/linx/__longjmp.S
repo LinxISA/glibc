@@ -1,4 +1,4 @@
-/* Linx rtld fallback barrier symbol.
+/* longjmp for Linx.
    Copyright (C) 2026 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
@@ -18,8 +18,31 @@
 
 #include <sysdep.h>
 
-ENTRY (__sync_synchronize)
+/* Restore the layout saved by setjmp.S: s0..s8, sp, ra.  */
+
+ENTRY (__longjmp)
+  C.BSTART.STD
+  ldi [a0, 0], ->s0
+  ldi [a0, 8], ->s1
+  ldi [a0, 16], ->s2
+  ldi [a0, 24], ->s3
+  ldi [a0, 32], ->s4
+  ldi [a0, 40], ->s5
+  ldi [a0, 48], ->s6
+  ldi [a0, 56], ->s7
+  ldi [a0, 64], ->s8
+  ldi [a0, 72], ->sp
+  ldi [a0, 80], ->ra
+  c.movr a1, ->a0
+
+  C.BSTART COND, 1f
+  setc.nei a1, 0
+
+  C.BSTART.STD
+  c.movi 1, ->a0
+
+1:
   C.BSTART.STD RET
   c.setc.tgt ra
   C.BSTOP
-END (__sync_synchronize)
+END (__longjmp)

@@ -10,6 +10,7 @@ endif
 
 ifeq ($(subdir),elf)
 sysdep-rtld-routines += \
+  linx-rtld-setjmp \
   linx-rtld-stubs \
   linx-rtld-sync \
   # sysdep-rtld-routines

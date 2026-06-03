@@ -54,6 +54,7 @@ BISON_BIN="${BISON_BIN:-/opt/homebrew/opt/bison/bin/bison}"
 CFLAGS_USER="${CFLAGS_USER:--O2 -g}"
 CPPFLAGS_USER="${CPPFLAGS_USER:--U_FORTIFY_SOURCE}"
 MAKE_TARGETS="${MAKE_TARGETS:-csu/subdir_lib}"
+BUILD_TRIPLE="${BUILD_TRIPLE:-$("$GLIBC_ROOT/scripts/config.guess")}"
 
 CONFIG_LOG="${CONFIG_LOG:-$LOG_DIR/02-configure.log}"
 BUILD_LOG="${BUILD_LOG:-$LOG_DIR/03-make.log}"
@@ -294,6 +295,7 @@ echo "[glibc] build: $BUILD_DIR" | tee -a "$SUMMARY"
 echo "[glibc] install: $INSTALL_DIR" | tee -a "$SUMMARY"
 echo "[glibc] sysroot: $SYSROOT" | tee -a "$SUMMARY"
 echo "[glibc] linux headers: $LINUX_HEADERS" | tee -a "$SUMMARY"
+echo "[glibc] build triple: $BUILD_TRIPLE" | tee -a "$SUMMARY"
 echo "[glibc] jobs: $JOBS" | tee -a "$SUMMARY"
 
 export PATH="$HOST_SHIM_DIR:$(dirname "$BISON_BIN"):$(dirname "$GMAKE_BIN"):$(dirname "$GSED_BIN"):/opt/homebrew/opt/binutils/bin:$PATH"
@@ -305,7 +307,7 @@ pushd "$BUILD_DIR" >/dev/null
 set +e
 "$GLIBC_ROOT/configure" \
   --host="$TARGET" \
-  --build="$(/usr/bin/uname -m)-apple-darwin$(/usr/bin/uname -r)" \
+  --build="$BUILD_TRIPLE" \
   --prefix=/usr \
   --with-headers="$LINUX_HEADERS" \
   --disable-werror \

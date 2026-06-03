@@ -45,13 +45,11 @@ name:
   /* a7 = syscall number */                                     \
   addiw zero, SYS_ify (syscall_name), ->a7;                     \
   acrc 1;                                                       \
-  C.BSTOP;                                                      \
-  C.BSTART;                                                     \
   /* errors are returned as -errno in a0 */                     \
-  addiw zero, -4096, ->a7;                                      \
-  /* if a0 > -4096 then error */                                \
+  subi zero, 4095, ->a7;                                        \
+  /* if a0 >= -4095 then error */                               \
   C.BSTART COND, .Lsyscall_error##name;                         \
-  setc.ltu a7, a0;
+  setc.geu a0, a7;
 
 #undef PSEUDO_END
 #define PSEUDO_END(name)                                        \
@@ -67,8 +65,7 @@ name:
   ENTRY (name);                                                 \
   C.BSTART.STD;                                                 \
   addiw zero, SYS_ify (syscall_name), ->a7;                     \
-  acrc 1;                                                       \
-  C.BSTOP;
+  acrc 1;
 
 #undef PSEUDO_END_NOERRNO
 #define PSEUDO_END_NOERRNO(name) END (name)
@@ -83,11 +80,20 @@ name:
 #define PSEUDO_END_ERRVAL(name) END (name)
 
 #undef ret_NOERRNO
-#define ret_NOERRNO C.BSTART.STD RET
+#define ret_NOERRNO           \
+  C.BSTART.STD RET;           \
+  c.setc.tgt ra;              \
+  C.BSTOP
 #undef ret_ERRVAL
-#define ret_ERRVAL C.BSTART.STD RET
+#define ret_ERRVAL            \
+  C.BSTART.STD RET;           \
+  c.setc.tgt ra;              \
+  C.BSTOP
 #undef ret
-#define ret C.BSTART.STD RET
+#define ret                   \
+  C.BSTART.STD RET;           \
+  c.setc.tgt ra;              \
+  C.BSTOP
 
 #else /* !__ASSEMBLER__ */
 
@@ -101,7 +107,7 @@ name:
   internal_syscall##nr (number, args)
 
 /* LinxISA Linux userspace syscall trap. */
-#define __SYSCALL_INSN "acrc 1\n\tc.bstop\n\tC.BSTART\n\t"
+#define __SYSCALL_INSN "acrc 1\n\t"
 #define __SYSCALL_CLOBBERS "x0", "x1", "x2", "x3", "memory"
 
 #define internal_syscall0(number, dummy...)                             \

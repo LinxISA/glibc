@@ -50,6 +50,8 @@ typedef struct
 {
   dtv_t *dtv;
   void *private;
+  uintptr_t stack_guard;
+  uintptr_t pointer_guard;
 } tcbhead_t;
 
 /* This is the size of the initial TCB.  */
@@ -87,6 +89,20 @@ typedef struct
    register descriptors for an ABI that is not finalized yet.  */
 
 # include <tcb-access.h>
+
+# define THREAD_SET_STACK_GUARD(value) \
+  (((tcbhead_t *) ((char *) READ_THREAD_POINTER () - TLS_TCB_OFFSET))[-1].stack_guard = (value))
+# define THREAD_COPY_STACK_GUARD(descr) \
+  (((tcbhead_t *) ((char *) (descr) + TLS_PRE_TCB_SIZE))[-1].stack_guard \
+   = ((tcbhead_t *) ((char *) READ_THREAD_POINTER () - TLS_TCB_OFFSET))[-1].stack_guard)
+
+# define THREAD_GET_POINTER_GUARD() \
+  (((tcbhead_t *) ((char *) READ_THREAD_POINTER () - TLS_TCB_OFFSET))[-1].pointer_guard)
+# define THREAD_SET_POINTER_GUARD(value) \
+  (THREAD_GET_POINTER_GUARD () = (value))
+# define THREAD_COPY_POINTER_GUARD(descr) \
+  (((tcbhead_t *) ((char *) (descr) + TLS_PRE_TCB_SIZE))[-1].pointer_guard \
+   = THREAD_GET_POINTER_GUARD ())
 
 # define NO_TLS_OFFSET -1
 
