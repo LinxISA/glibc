@@ -26,93 +26,6 @@
 
 #include <assert.h>
 
-static void
-linx_trace_version_map (const char *from_name, const char *version_name,
-                        struct link_map *map)
-{
-  static int dumped_libc_dynamic;
-  static int dumped_hello_dynamic;
-
-  if (map == NULL || map->l_name == NULL)
-    return;
-
-  const char *map_name = DSO_FILENAME (map->l_name);
-  if (map_name == NULL
-      || (strstr (map_name, "libc.so.6") == NULL
-          && strstr (map_name, "hello") == NULL))
-    return;
-
-  ElfW(Dyn) *raw_verdef = NULL;
-  ElfW(Dyn) *raw_verdefnum = NULL;
-  ElfW(Dyn) *raw_verneed = NULL;
-  ElfW(Dyn) *raw_verneednum = NULL;
-  ElfW(Dyn) *raw_versym = NULL;
-  const char *lib0 = map->l_libname != NULL ? map->l_libname->name : "(null)";
-  const char *lib1 = (map->l_libname != NULL && map->l_libname->next != NULL
-                      ? map->l_libname->next->name : "(null)");
-  const char *soname = l_soname (map);
-
-  if (map->l_ld != NULL)
-    for (ElfW(Dyn) *dyn = map->l_ld; dyn->d_tag != DT_NULL; ++dyn)
-      switch (dyn->d_tag)
-        {
-        case DT_VERDEF:
-          raw_verdef = dyn;
-          break;
-        case DT_VERDEFNUM:
-          raw_verdefnum = dyn;
-          break;
-        case DT_VERNEED:
-          raw_verneed = dyn;
-          break;
-        case DT_VERNEEDNUM:
-          raw_verneednum = dyn;
-          break;
-        case DT_VERSYM:
-          raw_versym = dyn;
-          break;
-        }
-
-  _dl_printf ("linx-rtld-ver: from=%s want=%s map=%s soname=%s "
-              "lib0=%s lib1=%s l_addr=0x%lx i_def=%u i_need=%u i_sym=%u "
-              "r_def=%u r_need=%u r_sym=%u\n",
-              from_name != NULL ? from_name : "(null)",
-              version_name != NULL ? version_name : "(null)",
-              map_name,
-              soname != NULL ? soname : "(null)",
-              lib0 != NULL ? lib0 : "(null)",
-              lib1 != NULL ? lib1 : "(null)",
-              (unsigned long int) map->l_addr,
-              map->l_info[VERSYMIDX (DT_VERDEF)] != NULL,
-              map->l_info[VERSYMIDX (DT_VERNEED)] != NULL,
-              map->l_info[VERSYMIDX (DT_VERSYM)] != NULL,
-              raw_verdef != NULL,
-              raw_verneed != NULL,
-              raw_versym != NULL);
-
-  int *dumped = NULL;
-  if (strstr (map_name, "libc.so.6") != NULL)
-    dumped = &dumped_libc_dynamic;
-  else if (strstr (map_name, "hello") != NULL)
-    dumped = &dumped_hello_dynamic;
-
-  if (dumped != NULL && *dumped == 0 && map->l_ld != NULL)
-    {
-      *dumped = 1;
-      for (unsigned int idx = 0; idx < 48; ++idx)
-        {
-          ElfW(Dyn) *dyn = &map->l_ld[idx];
-          _dl_printf ("linx-rtld-dyn: map=%s idx=%u tag=0x%lx val=0x%lx ptr=0x%lx\n",
-                      map_name, idx,
-                      (unsigned long int) dyn->d_tag,
-                      (unsigned long int) dyn->d_un.d_val,
-                      (unsigned long int) dyn->d_un.d_ptr);
-          if (dyn->d_tag == DT_NULL)
-            break;
-        }
-    }
-}
-
 static inline struct link_map *
 __attribute ((always_inline))
 find_needed (const char *name, struct link_map *map)
@@ -154,14 +67,8 @@ checking for version `%s' in file %s [%lu] required by file %s [%lu]\n",
 		      string, DSO_FILENAME (map->l_name),
 		      map->l_ns, name, ns);
 
-  if (__glibc_unlikely (strstr (name, "hello") != NULL
-                        && strcmp (string, "GLIBC_2.34") == 0))
-    linx_trace_version_map (name, string, map);
-
   if (__glibc_unlikely (map->l_info[VERSYMIDX (DT_VERDEF)] == NULL))
     {
-      linx_trace_version_map (name, string, map);
-
       /* The file has no symbol versioning.  I.e., the dependent
 	 object was linked against another version of this file.  We
 	 only print a message if verbose output is requested.  */
@@ -267,21 +174,10 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
   dyn = map->l_info[VERSYMIDX (DT_VERNEED)];
   def = map->l_info[VERSYMIDX (DT_VERDEF)];
 
-  if (__glibc_unlikely (map->l_name != NULL
-                        && (strstr (DSO_FILENAME (map->l_name), "hello") != NULL
-                            || strstr (DSO_FILENAME (map->l_name), "libc.so.6") != NULL)))
-    linx_trace_version_map (DSO_FILENAME (map->l_name), "check-map", map);
-
   if (dyn != NULL)
     {
       /* This file requires special versions from its dependencies.  */
       ElfW(Verneed) *ent = (ElfW(Verneed) *) (map->l_addr + dyn->d_un.d_ptr);
-
-      if (__glibc_unlikely (map->l_name != NULL
-                            && strstr (DSO_FILENAME (map->l_name), "hello") != NULL))
-        _dl_printf ("linx-rtld-need0: map=%s vn_file=0x%x need=%s\n",
-                    DSO_FILENAME (map->l_name), ent->vn_file,
-                    strtab + ent->vn_file);
 
       /* Currently the version number of the needed entry is 1.
 	 Make sure all we see is this version.  */
@@ -303,15 +199,6 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
 	  ElfW(Vernaux) *aux;
 	  const char *needed_name = strtab + ent->vn_file;
 	  struct link_map *needed = find_needed (needed_name, map);
-
-	  if (__glibc_unlikely (map->l_name != NULL
-                                && strstr (DSO_FILENAME (map->l_name), "hello") != NULL))
-            _dl_printf ("linx-rtld-need1: map=%s vn_file=0x%x need=%s found=%s\n",
-                        DSO_FILENAME (map->l_name),
-                        ent->vn_file,
-                        needed_name,
-                        needed != NULL && needed->l_name != NULL
-                        ? DSO_FILENAME (needed->l_name) : "(null)");
 
 	  /* If NEEDED is NULL this means a dependency was not found
 	     and no stub entry was created.  This should never happen.  */

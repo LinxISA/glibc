@@ -115,16 +115,6 @@ static const size_t system_dirs_len[] =
 #define nsystem_dirs_len array_length (system_dirs_len)
 
 static bool
-linx_trace_libc_load_p (const struct link_map *l)
-{
-  return l != NULL
-    && l->l_name != NULL
-    && (strcmp (l->l_name, "libc.so.6") == 0
-        || strcmp (l->l_name, "/lib/libc.so.6") == 0
-        || strstr (l->l_name, "/lib/libc.so.6") != NULL);
-}
-
-static bool
 is_trusted_path_normalize (const char *path, size_t len)
 {
   if (len == 0)
@@ -990,12 +980,6 @@ _dl_map_object_from_fd (const char *name, const char *origname, int fd,
 	  errval = errno;
 	lose:
 	  /* The file might already be closed.  */
-	  if (__glibc_unlikely (strcmp (name, "libc.so.6") == 0
-				|| strcmp (name, "/lib/libc.so.6") == 0
-				|| strcmp (name, "/hello") == 0))
-	    _dl_printf ("linx-rtld-lose: name=%s err=%s errno=%d fd=%d map_start=0x%lx\n",
-			name, errstring ?: "(null)", errval, fd,
-			(unsigned long int) (l != NULL ? l->l_map_start : 0));
 	  if (fd != -1)
 	    __close_nocancel (fd);
 	  if (l != NULL && l->l_map_start != 0)
@@ -1011,24 +995,10 @@ _dl_map_object_from_fd (const char *name, const char *origname, int fd,
 	  _dl_signal_error (errval, name, NULL, errstring);
 	}
 
-      if (__glibc_unlikely (strcmp (name, "/hello") == 0
-                            || strcmp (name, "libc.so.6") == 0
-                            || strcmp (name, "/lib/libc.so.6") == 0))
-        _dl_printf ("linx-rtld-id0: name=%s dev=0x%lx ino=0x%lx\n",
-                    name, (unsigned long int) id.dev,
-                    (unsigned long int) id.ino);
-
       /* Look again to see if the real name matched another already loaded.  */
       for (l = GL(dl_ns)[nsid]._ns_loaded; l != NULL; l = l->l_next)
 	if (!l->l_removed && _dl_file_id_match_p (&l->l_file_id, &id))
 	  {
-            if (__glibc_unlikely (strcmp (name, "libc.so.6") == 0
-                                  || strcmp (name, "/lib/libc.so.6") == 0))
-              _dl_printf ("linx-rtld-id1: name=%s matched=%s dev=0x%lx ino=0x%lx\n",
-                          name, DSO_FILENAME (l->l_name),
-                          (unsigned long int) l->l_file_id.dev,
-                          (unsigned long int) l->l_file_id.ino);
-
 	    /* The object is already loaded.
 	       Just bump its reference count and return it.  */
 	    __close_nocancel (fd);
@@ -1282,23 +1252,6 @@ _dl_map_object_from_fd (const char *name, const char *origname, int fd,
     /* Length of the sections to be loaded.  */
     maplength = loadcmds[nloadcmds - 1].allocend - loadcmds[0].mapstart;
 
-    if (__glibc_unlikely (linx_trace_libc_load_p (l)))
-      {
-        _dl_printf ("linx-rtld-map0: name=%s type=%d nload=%zu maplen=0x%lx ld_vaddr=0x%lx\n",
-                    l->l_name, type, nloadcmds, (unsigned long int) maplength,
-                    (unsigned long int) (uintptr_t) l->l_ld);
-        for (size_t i = 0; i < nloadcmds; ++i)
-          _dl_printf ("linx-rtld-map1: idx=%zu mapstart=0x%lx mapend=0x%lx dataend=0x%lx allocend=0x%lx mapoff=0x%lx prot=0x%x align=0x%lx\n",
-                      i,
-                      (unsigned long int) loadcmds[i].mapstart,
-                      (unsigned long int) loadcmds[i].mapend,
-                      (unsigned long int) loadcmds[i].dataend,
-                      (unsigned long int) loadcmds[i].allocend,
-                      (unsigned long int) loadcmds[i].mapoff,
-                      loadcmds[i].prot,
-                      (unsigned long int) loadcmds[i].mapalign);
-      }
-
     /* Now process the load commands and map segments into memory.
        This is responsible for filling in:
        l_map_start, l_map_end, l_addr, l_contiguous, l_phdr
@@ -1315,15 +1268,6 @@ _dl_map_object_from_fd (const char *name, const char *origname, int fd,
 
   if (l->l_ld != NULL)
     l->l_ld = (ElfW(Dyn) *) ((ElfW(Addr)) l->l_ld + l->l_addr);
-
-  if (__glibc_unlikely (linx_trace_libc_load_p (l)))
-    _dl_printf ("linx-rtld-map2: name=%s l_addr=0x%lx map_start=0x%lx map_end=0x%lx l_ld=0x%lx phdr=0x%lx\n",
-                l->l_name,
-                (unsigned long int) l->l_addr,
-                (unsigned long int) l->l_map_start,
-                (unsigned long int) l->l_map_end,
-                (unsigned long int) (uintptr_t) l->l_ld,
-                (unsigned long int) (uintptr_t) l->l_phdr);
 
   elf_get_dynamic_info (l, false, false);
 
