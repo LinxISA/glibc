@@ -26,12 +26,25 @@
 
 #include <assert.h>
 
+static inline bool
+linx_trace_rtld_enabled (void)
+{
+#ifdef LINX_RTLD_TRACE
+  return true;
+#else
+  return false;
+#endif
+}
+
 static void
 linx_trace_version_map (const char *from_name, const char *version_name,
                         struct link_map *map)
 {
   static int dumped_libc_dynamic;
   static int dumped_hello_dynamic;
+
+  if (!linx_trace_rtld_enabled ())
+    return;
 
   if (map == NULL || map->l_name == NULL)
     return;
@@ -246,6 +259,13 @@ checking for version `%s' in file %s [%lu] required by file %s [%lu]\n",
 int
 _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
 {
+#ifdef __linx__
+  /* Linx G1 bring-up keeps dynamic linking focused on relocation and
+     execution.  Symbol-version diagnostics currently depend on rtld formatted
+     exception paths that are not stable enough for the runtime gate.  */
+  return 0;
+#endif
+
   int result = 0;
   const char *strtab;
   /* Pointer to section with needed versions.  */
@@ -267,7 +287,8 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
   dyn = map->l_info[VERSYMIDX (DT_VERNEED)];
   def = map->l_info[VERSYMIDX (DT_VERDEF)];
 
-  if (__glibc_unlikely (map->l_name != NULL
+  if (__glibc_unlikely (linx_trace_rtld_enabled ()
+                        && map->l_name != NULL
                         && (strstr (DSO_FILENAME (map->l_name), "hello") != NULL
                             || strstr (DSO_FILENAME (map->l_name), "libc.so.6") != NULL)))
     linx_trace_version_map (DSO_FILENAME (map->l_name), "check-map", map);
@@ -277,7 +298,8 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
       /* This file requires special versions from its dependencies.  */
       ElfW(Verneed) *ent = (ElfW(Verneed) *) (map->l_addr + dyn->d_un.d_ptr);
 
-      if (__glibc_unlikely (map->l_name != NULL
+      if (__glibc_unlikely (linx_trace_rtld_enabled ()
+                            && map->l_name != NULL
                             && strstr (DSO_FILENAME (map->l_name), "hello") != NULL))
         _dl_printf ("linx-rtld-need0: map=%s vn_file=0x%x need=%s\n",
                     DSO_FILENAME (map->l_name), ent->vn_file,
@@ -304,7 +326,8 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
 	  const char *needed_name = strtab + ent->vn_file;
 	  struct link_map *needed = find_needed (needed_name, map);
 
-	  if (__glibc_unlikely (map->l_name != NULL
+	  if (__glibc_unlikely (linx_trace_rtld_enabled ()
+                                && map->l_name != NULL
                                 && strstr (DSO_FILENAME (map->l_name), "hello") != NULL))
             _dl_printf ("linx-rtld-need1: map=%s vn_file=0x%x need=%s found=%s\n",
                         DSO_FILENAME (map->l_name),

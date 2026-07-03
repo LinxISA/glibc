@@ -182,6 +182,10 @@ static unsigned int log_hashfraction;
 void
 _dl_start_profile (void)
 {
+#ifdef __linx__
+  return;
+#endif
+
   char *filename;
   int fd;
   struct __stat64_t64 st;
@@ -489,6 +493,10 @@ _dl_start_profile (void)
 void
 _dl_mcount (ElfW(Addr) frompc, ElfW(Addr) selfpc)
 {
+#ifdef __linx__
+  return;
+#endif
+
   volatile uint16_t *topcindex;
   size_t i, fromindex;
   struct here_fromstruct *fromp;

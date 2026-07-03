@@ -117,6 +117,10 @@ static const size_t system_dirs_len[] =
 static bool
 linx_trace_libc_load_p (const struct link_map *l)
 {
+#ifndef LINX_RTLD_TRACE
+  return false;
+#endif
+
   return l != NULL
     && l->l_name != NULL
     && (strcmp (l->l_name, "libc.so.6") == 0
@@ -236,6 +240,14 @@ is_dst (const char *input, const char *ref)
 size_t
 _dl_dst_count (const char *input)
 {
+#ifdef __linx__
+  /* Linx G1 bring-up does not yet rely on dynamic string tokens.  The
+     current loader path can see unterminated transient strings while the
+     Linux/QEMU userspace ABI is still being stabilized, so avoid the optional
+     token scan until the string/execve boundary is fully diagnosed.  */
+  return 0;
+#endif
+
   size_t cnt = 0;
 
   input = strchr (input, '$');
@@ -990,12 +1002,6 @@ _dl_map_object_from_fd (const char *name, const char *origname, int fd,
 	  errval = errno;
 	lose:
 	  /* The file might already be closed.  */
-	  if (__glibc_unlikely (strcmp (name, "libc.so.6") == 0
-				|| strcmp (name, "/lib/libc.so.6") == 0
-				|| strcmp (name, "/hello") == 0))
-	    _dl_printf ("linx-rtld-lose: name=%s err=%s errno=%d fd=%d map_start=0x%lx\n",
-			name, errstring ?: "(null)", errval, fd,
-			(unsigned long int) (l != NULL ? l->l_map_start : 0));
 	  if (fd != -1)
 	    __close_nocancel (fd);
 	  if (l != NULL && l->l_map_start != 0)
@@ -1011,24 +1017,10 @@ _dl_map_object_from_fd (const char *name, const char *origname, int fd,
 	  _dl_signal_error (errval, name, NULL, errstring);
 	}
 
-      if (__glibc_unlikely (strcmp (name, "/hello") == 0
-                            || strcmp (name, "libc.so.6") == 0
-                            || strcmp (name, "/lib/libc.so.6") == 0))
-        _dl_printf ("linx-rtld-id0: name=%s dev=0x%lx ino=0x%lx\n",
-                    name, (unsigned long int) id.dev,
-                    (unsigned long int) id.ino);
-
       /* Look again to see if the real name matched another already loaded.  */
       for (l = GL(dl_ns)[nsid]._ns_loaded; l != NULL; l = l->l_next)
 	if (!l->l_removed && _dl_file_id_match_p (&l->l_file_id, &id))
 	  {
-            if (__glibc_unlikely (strcmp (name, "libc.so.6") == 0
-                                  || strcmp (name, "/lib/libc.so.6") == 0))
-              _dl_printf ("linx-rtld-id1: name=%s matched=%s dev=0x%lx ino=0x%lx\n",
-                          name, DSO_FILENAME (l->l_name),
-                          (unsigned long int) l->l_file_id.dev,
-                          (unsigned long int) l->l_file_id.ino);
-
 	    /* The object is already loaded.
 	       Just bump its reference count and return it.  */
 	    __close_nocancel (fd);
@@ -2092,12 +2084,15 @@ _dl_map_new_object (struct link_map *loader, const char *name,
 			LA_SER_LIBPATH, &found_other_class);
 
       /* Look at the RUNPATH information for this binary.  */
-      if (fd == -1 && loader != NULL
-	  && cache_rpath (loader, &loader->l_runpath_dirs,
-			  DT_RUNPATH, "RUNPATH"))
-	fd = open_path (name, namelen, mode,
-			&loader->l_runpath_dirs, &realname, &fb, loader,
-			LA_SER_RUNPATH, &found_other_class);
+      if (fd == -1 && loader != NULL)
+	{
+	  bool runpath_ok = cache_rpath (loader, &loader->l_runpath_dirs,
+					 DT_RUNPATH, "RUNPATH");
+	  if (runpath_ok)
+	    fd = open_path (name, namelen, mode,
+			    &loader->l_runpath_dirs, &realname, &fb, loader,
+			    LA_SER_RUNPATH, &found_other_class);
+	}
 
 #ifdef USE_LDCONFIG
       if (fd == -1
