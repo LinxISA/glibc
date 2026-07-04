@@ -259,13 +259,6 @@ checking for version `%s' in file %s [%lu] required by file %s [%lu]\n",
 int
 _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
 {
-#ifdef __linx__
-  /* Linx G1 bring-up keeps dynamic linking focused on relocation and
-     execution.  Symbol-version diagnostics currently depend on rtld formatted
-     exception paths that are not stable enough for the runtime gate.  */
-  return 0;
-#endif
-
   int result = 0;
   const char *strtab;
   /* Pointer to section with needed versions.  */
