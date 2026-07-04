@@ -106,6 +106,7 @@ __libc_setup_tls (void)
   size_t align = 0;
   size_t max_align = TCB_ALIGNMENT;
   const ElfW(Phdr) *phdr;
+  bool have_tls = false;
 
   struct link_map *main_map = GL(dl_ns)[LM_ID_BASE]._ns_loaded;
 
@@ -128,8 +129,21 @@ __libc_setup_tls (void)
 	main_map->l_tls_initimage = initimage;
 	main_map->l_tls_initimage_size = filesz;
 	init_slotinfo (main_map);
+	have_tls = true;
 	break;
       }
+
+#ifdef __LINX__
+  if (!have_tls)
+    {
+      /* Linx bring-up keeps several early libc caches process-global until
+         the shared TLS relocation path is complete.  Static smoke binaries can
+         therefore have no PT_TLS segment, but _dl_allocate_tls_init still
+         expects a non-null slotinfo list while installing the initial DTV.  */
+      static_slotinfo.len = array_length (_dl_static_dtv);
+      GL(dl_tls_dtv_slotinfo_list) = &static_slotinfo;
+    }
+#endif
 
   /* Number of elements in the static TLS block.  */
   GL(dl_tls_static_nelem) = GL(dl_tls_max_dtv_idx);

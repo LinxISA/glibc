@@ -264,9 +264,14 @@ extern __thread locale_t __libc_tsd_LOCALE
    categories will link in the lc-CATEGORY.c module to define this symbol,
    and we arrange that linking that module is what brings in all the code
    associated with this category.  */
-#define DEFINE_CATEGORY(category, category_name, items, a) \
+# if defined __LINX__
+#  define DEFINE_CATEGORY(category, category_name, items, a) \
+extern struct __locale_data *const *_nl_current_##category attribute_hidden;
+# else
+#  define DEFINE_CATEGORY(category, category_name, items, a) \
 extern __thread struct __locale_data *const *_nl_current_##category \
   attribute_hidden attribute_tls_model_ie;
+# endif
 #include "categories.def"
 #undef	DEFINE_CATEGORY
 
@@ -289,11 +294,19 @@ extern __thread struct __locale_data *const *_nl_current_##category \
    _nl_current_CATEGORY_used is set to a value unequal to zero to mark this
    category as used.  On S390 the used relocation to load the symbol address
    can only handle even addresses.  */
-#define _NL_CURRENT_DEFINE(category) \
+# if defined __LINX__
+#  define _NL_CURRENT_DEFINE(category) \
+  struct __locale_data *const *_nl_current_##category attribute_hidden \
+    = &_nl_global_locale.__locales[category]; \
+  asm (".globl " __SYMBOL_PREFIX "_nl_current_" #category "_used\n" \
+       _NL_CURRENT_DEFINE_ABS (_nl_current_##category##_used, 2));
+# else
+#  define _NL_CURRENT_DEFINE(category) \
   __thread struct __locale_data *const *_nl_current_##category \
     attribute_hidden = &_nl_global_locale.__locales[category]; \
   asm (".globl " __SYMBOL_PREFIX "_nl_current_" #category "_used\n" \
        _NL_CURRENT_DEFINE_ABS (_nl_current_##category##_used, 2));
+# endif
 #ifdef HAVE_ASM_SET_DIRECTIVE
 # define _NL_CURRENT_DEFINE_ABS(sym, val) ".set " #sym ", " #val
 #else
