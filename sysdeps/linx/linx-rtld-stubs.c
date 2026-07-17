@@ -28,6 +28,19 @@ linx_rtld_barrier (void)
   __asm__ __volatile__ ("" ::: "memory");
 }
 
+static inline uint32_t
+linx_casw_aqrl (volatile void *ptr, uint32_t expected, uint32_t desired)
+{
+  register uint64_t old asm ("a0") = (uint64_t) ptr;
+  register uint64_t expect asm ("a1") = expected;
+  register uint64_t replacement asm ("a2") = desired;
+  asm volatile ("casw.aqrl [a0], a1, a2, ->a0"
+                : "+r" (old)
+                : "r" (expect), "r" (replacement)
+                : "memory");
+  return (uint32_t) old;
+}
+
 long __syscall_error (long err);
 hidden_proto (__syscall_error)
 long
@@ -71,8 +84,9 @@ __atomic_exchange_4 (volatile void *ptr, uint32_t desired, int memorder)
 {
   uint32_t old;
   (void) memorder;
-  old = *(volatile uint32_t *) ptr;
-  *(volatile uint32_t *) ptr = desired;
+  do
+    old = *(volatile uint32_t *) ptr;
+  while (linx_casw_aqrl (ptr, old, desired) != old);
   return old;
 }
 
@@ -88,12 +102,9 @@ __atomic_compare_exchange_4 (volatile void *ptr, void *expected,
   (void) success_memorder;
   (void) failure_memorder;
 
-  old = *(volatile uint32_t *) ptr;
+  old = linx_casw_aqrl (ptr, *exp, desired);
   if (old == *exp)
-    {
-      *(volatile uint32_t *) ptr = desired;
-      return true;
-    }
+    return true;
 
   *exp = old;
   return false;
@@ -104,8 +115,9 @@ __atomic_fetch_add_4 (volatile void *ptr, uint32_t val, int memorder)
 {
   uint32_t old;
   (void) memorder;
-  old = *(volatile uint32_t *) ptr;
-  *(volatile uint32_t *) ptr = old + val;
+  do
+    old = *(volatile uint32_t *) ptr;
+  while (linx_casw_aqrl (ptr, old, old + val) != old);
   return old;
 }
 extern char **__environ attribute_hidden;
