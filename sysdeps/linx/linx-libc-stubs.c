@@ -19,6 +19,20 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+static inline uint64_t
+linx_casd_aqrl (volatile void *ptr, uint64_t expected, uint64_t desired)
+{
+  register uint64_t old asm ("a0") = (uint64_t) ptr;
+  register uint64_t expect asm ("a1") = expected;
+  register uint64_t replacement asm ("a2") = desired;
+  asm volatile ("casd.aqrl [a0], a1, a2, ->a0"
+                : "+r" (old)
+                : "r" (expect), "r" (replacement)
+                : "memory");
+  return old;
+}
+
 /* Bring-up fallback for Linux syscall wrappers.  */
 long __syscall_error (long err);
 long
@@ -50,8 +64,9 @@ __atomic_exchange_8 (volatile void *ptr, uint64_t desired, int memorder)
 {
   uint64_t old;
   (void) memorder;
-  old = *(volatile uint64_t *) ptr;
-  *(volatile uint64_t *) ptr = desired;
+  do
+    old = *(volatile uint64_t *) ptr;
+  while (linx_casd_aqrl (ptr, old, desired) != old);
   return old;
 }
 
@@ -67,12 +82,9 @@ __atomic_compare_exchange_8 (volatile void *ptr, void *expected,
   (void) success_memorder;
   (void) failure_memorder;
 
-  old = *(volatile uint64_t *) ptr;
+  old = linx_casd_aqrl (ptr, *exp, desired);
   if (old == *exp)
-    {
-      *(volatile uint64_t *) ptr = desired;
-      return true;
-    }
+    return true;
 
   *exp = old;
   return false;
@@ -83,8 +95,9 @@ __atomic_fetch_add_8 (volatile void *ptr, uint64_t val, int memorder)
 {
   uint64_t old;
   (void) memorder;
-  old = *(volatile uint64_t *) ptr;
-  *(volatile uint64_t *) ptr = old + val;
+  do
+    old = *(volatile uint64_t *) ptr;
+  while (linx_casd_aqrl (ptr, old, old + val) != old);
   return old;
 }
 
@@ -93,8 +106,9 @@ __atomic_fetch_sub_8 (volatile void *ptr, uint64_t val, int memorder)
 {
   uint64_t old;
   (void) memorder;
-  old = *(volatile uint64_t *) ptr;
-  *(volatile uint64_t *) ptr = old - val;
+  do
+    old = *(volatile uint64_t *) ptr;
+  while (linx_casd_aqrl (ptr, old, old - val) != old);
   return old;
 }
 
@@ -103,8 +117,9 @@ __atomic_fetch_and_8 (volatile void *ptr, uint64_t val, int memorder)
 {
   uint64_t old;
   (void) memorder;
-  old = *(volatile uint64_t *) ptr;
-  *(volatile uint64_t *) ptr = old & val;
+  do
+    old = *(volatile uint64_t *) ptr;
+  while (linx_casd_aqrl (ptr, old, old & val) != old);
   return old;
 }
 
@@ -113,8 +128,9 @@ __atomic_fetch_or_8 (volatile void *ptr, uint64_t val, int memorder)
 {
   uint64_t old;
   (void) memorder;
-  old = *(volatile uint64_t *) ptr;
-  *(volatile uint64_t *) ptr = old | val;
+  do
+    old = *(volatile uint64_t *) ptr;
+  while (linx_casd_aqrl (ptr, old, old | val) != old);
   return old;
 }
 
@@ -123,7 +139,8 @@ __atomic_fetch_xor_8 (volatile void *ptr, uint64_t val, int memorder)
 {
   uint64_t old;
   (void) memorder;
-  old = *(volatile uint64_t *) ptr;
-  *(volatile uint64_t *) ptr = old ^ val;
+  do
+    old = *(volatile uint64_t *) ptr;
+  while (linx_casd_aqrl (ptr, old, old ^ val) != old);
   return old;
 }
