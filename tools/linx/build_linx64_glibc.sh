@@ -60,6 +60,8 @@ BUILD_LOG="${BUILD_LOG:-$LOG_DIR/03-make.log}"
 
 mkdir -p "$BUILD_DIR" "$INSTALL_DIR" "$LOG_DIR" "$FALLBACK_LIB_DIR"
 
+python3 "$GLIBC_ROOT/tools/linx/check_pto_isa_identity.py"
+
 if [[ ! -x "$CLANG" ]]; then
   echo "error: clang not found: $CLANG" >&2
   exit 1
