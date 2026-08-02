@@ -60,19 +60,19 @@
 # define R_LINX_GLOB_DAT 13
 #endif
 #ifndef R_LINX_TLS_DTPMOD64
-# define R_LINX_TLS_DTPMOD64 23
+# define R_LINX_TLS_DTPMOD64 28
 #endif
 #ifndef R_LINX_TLS_DTPREL64
-# define R_LINX_TLS_DTPREL64 24
+# define R_LINX_TLS_DTPREL64 29
 #endif
 #ifndef R_LINX_TLS_TPREL64
-# define R_LINX_TLS_TPREL64 25
+# define R_LINX_TLS_TPREL64 30
 #endif
 #ifndef R_LINX_TLSDESC
-# define R_LINX_TLSDESC 26
+# define R_LINX_TLSDESC 31
 #endif
 #ifndef R_LINX_IRELATIVE
-# define R_LINX_IRELATIVE 27
+# define R_LINX_IRELATIVE 32
 #endif
 
 #define ELF_MACHINE_JMP_SLOT R_LINX_JUMP_SLOT

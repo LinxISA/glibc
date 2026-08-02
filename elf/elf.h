@@ -1305,6 +1305,11 @@ typedef struct
 /* Note entries for freedesktop.org have this name.  */
 #define ELF_NOTE_FDO		"FDO"
 
+/* PTO ISA release identity note.  The descriptor is compact UTF-8 JSON
+   with lexicographically sorted keys and no trailing NUL.  */
+#define ELF_NOTE_PTO		"PTO"
+#define PTO_NT_ISA_IDENTITY	1
+
 /* Defined types of notes for Solaris.  */
 
 /* Value of descriptor (one word) is desired pagesize for the binary.  */
