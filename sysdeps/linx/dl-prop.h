@@ -24,13 +24,13 @@
 #include <stdint.h>
 #include <string.h>
 
-/* PTO ISA 0.57.1 ELF identity descriptor.  Keep this byte-for-byte in sync
+/* PTO ISA 0.58.0 ELF identity descriptor.  Keep this byte-for-byte in sync
    with PTO-ISA/pto-spec spec/release-manifest.json.  */
 #define LINX_PTO_ISA_IDENTITY_JSON					\
-  "{\"encoding_abi\":\"pto-isa-0.57.1-mode-function-v1\","		\
+  "{\"encoding_abi\":\"pto-isa-0.58.0-mode-function-v1\","		\
   "\"encoding_projection_sha256\":"					\
-  "\"9705a984e2e48e0d4e856d3fbcfa07041c8578dd326d81f1c90279e826354c32\"," \
-  "\"release\":\"0.57.1\"}"
+  "\"0cad2272ada8f53fc8354e22568099fe8d6bd4b7832c837260cd370b0fc76ffa\"," \
+  "\"release\":\"0.58.0\"}"
 
 #define LINX_PTO_NOTE_SCAN_MAX 4096
 
@@ -165,7 +165,8 @@ linx_pto_process_note_bytes (struct link_map *l, const unsigned char *notes,
 		{
 	  const char *desc = (const char *) notes + desc_offset;
 	  const size_t expected_len = sizeof (LINX_PTO_ISA_IDENTITY_JSON) - 1;
-	  bool matches = (note->n_descsz == expected_len
+	  bool matches = (!l->l_mach.pto_isa_identity_valid
+			  && note->n_descsz == expected_len
 			  && memcmp (desc, LINX_PTO_ISA_IDENTITY_JSON,
 				     expected_len) == 0);
 
