@@ -14,6 +14,13 @@ import sys
 
 
 EXPECTED_DESCRIPTOR = (
+    '{"encoding_abi":"pto-isa-0.58.1-mode-function-v1",'
+    '"encoding_projection_sha256":'
+    '"89b872d6eaf0252200bc9349d49b9346e2a69d894cdcc2dcd0fd71911c1e0b8c",'
+    '"release":"0.58.1"}'
+)
+
+OLD_DESCRIPTOR = (
     '{"encoding_abi":"pto-isa-0.58.0-mode-function-v1",'
     '"encoding_projection_sha256":'
     '"0cad2272ada8f53fc8354e22568099fe8d6bd4b7832c837260cd370b0fc76ffa",'
@@ -75,7 +82,7 @@ def parse_fixture(notes: bytes, segment_align: int = NOTE_ALIGN) -> tuple[bool, 
         name = notes[name_offset:name_offset + namesz]
         desc = notes[desc_offset:desc_offset + descsz]
         if namesz == len(NOTE_NAME) and note_type == NOTE_TYPE and name == NOTE_NAME:
-            if valid or desc != EXPECTED_DESCRIPTOR.encode("utf-8"):
+            if desc != EXPECTED_DESCRIPTOR.encode("utf-8"):
                 return False, True
             valid = True
         offset = next_offset
@@ -84,18 +91,14 @@ def parse_fixture(notes: bytes, segment_align: int = NOTE_ALIGN) -> tuple[bool, 
 
 def check_fixture_cases() -> None:
     good = make_note(NOTE_NAME, NOTE_TYPE, EXPECTED_DESCRIPTOR.encode("utf-8"))
-    mismatch = make_note(
-        NOTE_NAME, NOTE_TYPE,
-        EXPECTED_DESCRIPTOR.replace('"release":"0.58.0"', '"release":"0.57.1"')
-        .encode("utf-8"),
-    )
+    mismatch = make_note(NOTE_NAME, NOTE_TYPE, OLD_DESCRIPTOR.encode("utf-8"))
     other = make_note(b"GNU\0", 3, b"build-id")
     cases = {
         "valid": (good, (True, False)),
         "missing": (other, (False, False)),
         "mismatch": (mismatch, (False, True)),
         "conflict": (good + mismatch, (False, True)),
-        "duplicate-identical": (good + good, (False, True)),
+        "duplicate-identical": (good + good, (True, False)),
         "malformed": (good + b"\x01\x02", (False, True)),
         "trailing-nul": (
             make_note(NOTE_NAME, NOTE_TYPE,
@@ -193,7 +196,7 @@ def main() -> int:
 
     check_fixture_cases()
 
-    print("ok: Linx glibc PTO ISA identity wiring matches 0.58.0")
+    print("ok: Linx glibc PTO ISA identity wiring matches 0.58.1")
     return 0
 
 

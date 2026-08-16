@@ -35,7 +35,7 @@ _start (void)
   __asm__ volatile (
       "C.BSTART.STD\n"
       "c.movr\tsp,\t->a1\n"
-      "BSTART\tCALL, _start_c, ra=1f\n"
+      "HL.BSTART.CALL\t_start_c, 1f, ->ra\n"
       "C.BSTOP\n"
       "1:\n"
       "C.BSTART\tDIRECT, 1b\n"

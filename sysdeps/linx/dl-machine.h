@@ -122,7 +122,7 @@ elf_machine_dynamic (void)
 " LINX_STRINGIZE (ENTRY_POINT) ":\n\
 	C.BSTART.STD\n\
 	c.movr\tsp,\t->a0\n\
-	BSTART\tCALL, _dl_start, ra=1f\n\
+	HL.BSTART.CALL\t_dl_start, 1f, ->ra\n\
 	C.BSTOP\n\
 1:\n\
 _dl_start_user:\n\
@@ -138,7 +138,7 @@ _dl_start_user:\n\
 	addtpc\t_rtld_local,\t->a0\n\
 	addi\ta0,\t_rtld_local,\t->a0\n\
 	ld\t[a0, zero],\t->a0\n\
-	BSTART\tCALL, _dl_init, ra=2f\n\
+	HL.BSTART.CALL\t_dl_init, 2f, ->ra\n\
 	C.BSTOP\n\
 2:\n\
 	C.BSTART\tIND\n\
