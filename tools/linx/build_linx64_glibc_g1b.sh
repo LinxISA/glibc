@@ -3,7 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GLIBC_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-REPO_ROOT="$(cd "$GLIBC_ROOT/../.." && pwd)"
+REPO_ROOT_DEFAULT="$(cd "$GLIBC_ROOT/../.." && pwd)"
+REPO_ROOT="${REPO_ROOT:-$REPO_ROOT_DEFAULT}"
 
 OUT_ROOT="${OUT_ROOT:-$REPO_ROOT/out/libc/glibc}"
 BUILD_DIR="${BUILD_DIR:-$OUT_ROOT/build}"
