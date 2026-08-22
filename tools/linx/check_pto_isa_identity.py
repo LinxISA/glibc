@@ -7,6 +7,7 @@ exercise in a normal host build before the Linx runtime image exists.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 import struct
@@ -14,18 +15,29 @@ import sys
 
 
 EXPECTED_DESCRIPTOR = (
+    '{"encoding_abi":"pto-isa-0.58.3-mode-function-v1",'
+    '"encoding_projection_sha256":'
+    '"8a48b80e04484c70870f155bf9efc79d2a805cf99e809f4e4e8a7e6a7eb34172",'
+    '"release":"0.58.3"}'
+)
+
+V0581_DESCRIPTOR = (
     '{"encoding_abi":"pto-isa-0.58.1-mode-function-v1",'
     '"encoding_projection_sha256":'
     '"89b872d6eaf0252200bc9349d49b9346e2a69d894cdcc2dcd0fd71911c1e0b8c",'
     '"release":"0.58.1"}'
 )
 
-OLD_DESCRIPTOR = (
-    '{"encoding_abi":"pto-isa-0.58.0-mode-function-v1",'
-    '"encoding_projection_sha256":'
-    '"0cad2272ada8f53fc8354e22568099fe8d6bd4b7832c837260cd370b0fc76ffa",'
-    '"release":"0.58.0"}'
-)
+EXPECTED_AUTHORITY = {
+    "release": "0.58.3",
+    "encoding_abi": "pto-isa-0.58.3-mode-function-v1",
+    "encoding_projection_sha256":
+        "8a48b80e04484c70870f155bf9efc79d2a805cf99e809f4e4e8a7e6a7eb34172",
+    "content_sha256":
+        "f299fe3d256c5d071e57bb4aaa2be2de2e4a386ae090048df1f73ae92d392678",
+    "source_commit": "e599a3d36ebfad43362ff591ea5e128816c684c7",
+    "source_tree": "abb6899d2e664e378ac9c1b77062670daa4d31b4",
+}
 
 EXPECTED_RELOCS = {
     "R_LINX_TLS_DTPMOD64": 28,
@@ -91,13 +103,19 @@ def parse_fixture(notes: bytes, segment_align: int = NOTE_ALIGN) -> tuple[bool, 
 
 def check_fixture_cases() -> None:
     good = make_note(NOTE_NAME, NOTE_TYPE, EXPECTED_DESCRIPTOR.encode("utf-8"))
-    mismatch = make_note(NOTE_NAME, NOTE_TYPE, OLD_DESCRIPTOR.encode("utf-8"))
+    v0581 = make_note(NOTE_NAME, NOTE_TYPE, V0581_DESCRIPTOR.encode("utf-8"))
+    wrong_projection = make_note(
+        NOTE_NAME,
+        NOTE_TYPE,
+        EXPECTED_DESCRIPTOR.replace("8a48b80e", "9a48b80e").encode("utf-8"),
+    )
     other = make_note(b"GNU\0", 3, b"build-id")
     cases = {
         "valid": (good, (True, False)),
         "missing": (other, (False, False)),
-        "mismatch": (mismatch, (False, True)),
-        "conflict": (good + mismatch, (False, True)),
+        "legacy-v0.58.1": (v0581, (False, True)),
+        "wrong-projection": (wrong_projection, (False, True)),
+        "conflict": (good + v0581, (False, True)),
         "duplicate-identical": (good + good, (True, False)),
         "malformed": (good + b"\x01\x02", (False, True)),
         "trailing-nul": (
@@ -150,6 +168,17 @@ def extract_c_string_macro(source: str, name: str) -> str:
 def main() -> int:
     repo = pathlib.Path(__file__).resolve().parents[2]
 
+    authority = json.loads(read(repo, "tools/linx/pto-isa-0583-authority.json"))
+    require(authority == EXPECTED_AUTHORITY,
+            "PTO ISA 0.58.3 authority fixture is not exact")
+    wire_identity = {
+        key: authority[key]
+        for key in ("encoding_abi", "encoding_projection_sha256", "release")
+    }
+    require(json.dumps(wire_identity, sort_keys=True, separators=(",", ":"))
+            == EXPECTED_DESCRIPTOR,
+            "authority fixture does not derive the canonical wire descriptor")
+
     elf_h = read(repo, "elf/elf.h")
     dl_prop = read(repo, "sysdeps/linx/dl-prop.h")
     dl_machine = read(repo, "sysdeps/linx/dl-machine.h")
@@ -196,7 +225,7 @@ def main() -> int:
 
     check_fixture_cases()
 
-    print("ok: Linx glibc PTO ISA identity wiring matches 0.58.1")
+    print("ok: Linx glibc PTO ISA identity wiring matches 0.58.3")
     return 0
 
 
