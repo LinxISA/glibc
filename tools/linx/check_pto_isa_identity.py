@@ -7,6 +7,7 @@ exercise in a normal host build before the Linx runtime image exists.
 
 from __future__ import annotations
 
+import argparse
 import json
 import pathlib
 import re
@@ -108,6 +109,35 @@ def parse_fixture(notes: bytes, segment_align: int = NOTE_ALIGN) -> tuple[bool, 
     return valid, invalid
 
 
+def check_elf_artifact(path: pathlib.Path) -> None:
+    image = path.read_bytes()
+    require(
+        len(image) >= 64
+        and image[:6] == b"\x7fELF\x02\x01"
+        and struct.unpack_from("<H", image, 18)[0] == 233,
+        f"artifact must be a little-endian Linx ELF64 image: {path}",
+    )
+    phoff = struct.unpack_from("<Q", image, 32)[0]
+    phentsize, phnum = struct.unpack_from("<HH", image, 54)
+    require(phentsize >= 56 and phoff + phentsize * phnum <= len(image),
+            f"invalid program header table: {path}")
+
+    found = False
+    for number in range(phnum):
+        offset = phoff + number * phentsize
+        p_type, _, p_offset, _, _, p_filesz, _, p_align = struct.unpack_from(
+            "<IIQQQQQQ", image, offset
+        )
+        if p_type != 4 or p_align != NOTE_ALIGN:
+            continue
+        require(p_offset + p_filesz <= len(image),
+                f"PT_NOTE exceeds file bounds: {path}")
+        valid, invalid = parse_fixture(image[p_offset:p_offset + p_filesz])
+        require(not invalid, f"invalid PTO ISA identity in {path}")
+        found = found or valid
+    require(found, f"exact PTO ISA 0.59.1 identity missing from {path}")
+
+
 def check_fixture_cases() -> None:
     good = make_note(NOTE_NAME, NOTE_TYPE, EXPECTED_DESCRIPTOR.encode("utf-8"))
     v0581 = make_note(NOTE_NAME, NOTE_TYPE, V0581_DESCRIPTOR.encode("utf-8"))
@@ -177,6 +207,9 @@ def extract_c_string_macro(source: str, name: str) -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--artifact", action="append", type=pathlib.Path, default=[])
+    args = parser.parse_args()
     repo = pathlib.Path(__file__).resolve().parents[2]
 
     authority = json.loads(read(repo, "tools/linx/pto-isa-0591-authority.json"))
@@ -235,6 +268,8 @@ def main() -> int:
                 f"{name} must be {value}, found {match.group(1)}")
 
     check_fixture_cases()
+    for artifact in args.artifact:
+        check_elf_artifact(artifact)
 
     print("ok: Linx glibc PTO ISA identity wiring matches 0.59.1")
     return 0
