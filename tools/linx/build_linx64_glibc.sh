@@ -53,6 +53,8 @@ BISON_BIN="${BISON_BIN:-/opt/homebrew/opt/bison/bin/bison}"
 
 CFLAGS_USER="${CFLAGS_USER:--O2 -g}"
 CPPFLAGS_USER="${CPPFLAGS_USER:--U_FORTIFY_SOURCE}"
+PTO_MARCH="-march=linx64+pto-v0591-scoped"
+PTO_LINK_FLAG="--linx-pto-v0591-scoped"
 MAKE_TARGETS="${MAKE_TARGETS:-csu/subdir_lib}"
 
 CONFIG_LOG="${CONFIG_LOG:-$LOG_DIR/02-configure.log}"
@@ -120,12 +122,12 @@ if [[ ! -f "$FALLBACK_LIBGCC" ]]; then
     SOFTFP_OBJ="$FALLBACK_LIB_DIR/softfp.o"
     ATOMIC_OBJ="$FALLBACK_LIB_DIR/atomic_builtins.o"
 
-    "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+    "$CLANG" -target "$TARGET" "$PTO_MARCH" --sysroot="$SYSROOT" \
       -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
       -I"$CLANG_HEADERS_DIR" \
       -I"$FALLBACK_INC_DIR" \
       -c "$FALLBACK_SOFTFP_SRC" -o "$SOFTFP_OBJ"
-    "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+    "$CLANG" -target "$TARGET" "$PTO_MARCH" --sysroot="$SYSROOT" \
       -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
       -I"$CLANG_HEADERS_DIR" \
       -I"$FALLBACK_INC_DIR" \
@@ -147,7 +149,7 @@ if [[ ! -f "$FALLBACK_CRTBEGINS" ]]; then
   cat > "$FALLBACK_LIB_DIR/crtbeginS.c" <<'EOF'
 void *__dso_handle = &__dso_handle;
 EOF
-  "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+  "$CLANG" -target "$TARGET" "$PTO_MARCH" --sysroot="$SYSROOT" \
     -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
     -c "$FALLBACK_LIB_DIR/crtbeginS.c" -o "$FALLBACK_CRTBEGINS"
 fi
@@ -156,7 +158,7 @@ if [[ ! -f "$FALLBACK_CRTENDS" ]]; then
   cat > "$FALLBACK_LIB_DIR/crtendS.c" <<'EOF'
 char __linx_crtend_anchor;
 EOF
-  "$CLANG" -target "$TARGET" --sysroot="$SYSROOT" \
+  "$CLANG" -target "$TARGET" "$PTO_MARCH" --sysroot="$SYSROOT" \
     -O2 -fPIC -ffreestanding -fno-stack-protector -fno-builtin \
     -c "$FALLBACK_LIB_DIR/crtendS.c" -o "$FALLBACK_CRTENDS"
 fi
@@ -184,13 +186,14 @@ extra=()
 if [[ \$link -eq 1 ]]; then
   extra+=(
     "-fuse-ld=lld"
+    "-Wl,$PTO_LINK_FLAG"
     "-rtlib=libgcc"
     "-unwindlib=none"
     "-L\$FALLBACK_LIB_DIR"
     "-B\$FALLBACK_LIB_DIR"
   )
 fi
-exec "\$CLANG_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" -isystem "\$CLANG_HEADERS_DIR" "\${extra[@]}" "\$@"
+exec "\$CLANG_BIN" -target "\$TARGET" "$PTO_MARCH" --sysroot="\$SYSROOT" -isystem "\$CLANG_HEADERS_DIR" "\${extra[@]}" "\$@"
 WRAP
 chmod +x "$TOOL_WRAP_DIR/linx-clang"
 
@@ -214,15 +217,22 @@ extra=()
 if [[ \$link -eq 1 ]]; then
   extra+=(
     "-fuse-ld=lld"
+    "-Wl,$PTO_LINK_FLAG"
     "-rtlib=libgcc"
     "-unwindlib=none"
     "-L\$FALLBACK_LIB_DIR"
     "-B\$FALLBACK_LIB_DIR"
   )
 fi
-exec "\$CLANGXX_BIN" -target "\$TARGET" --sysroot="\$SYSROOT" -isystem "\$CLANG_HEADERS_DIR" "\${extra[@]}" "\$@"
+exec "\$CLANGXX_BIN" -target "\$TARGET" "$PTO_MARCH" --sysroot="\$SYSROOT" -isystem "\$CLANG_HEADERS_DIR" "\${extra[@]}" "\$@"
 WRAP
 chmod +x "$TOOL_WRAP_DIR/linx-clang++"
+
+cat > "$TOOL_WRAP_DIR/linx-ld" <<WRAP
+#!/usr/bin/env bash
+exec "$LD_BIN" "$PTO_LINK_FLAG" "\$@"
+WRAP
+chmod +x "$TOOL_WRAP_DIR/linx-ld"
 
 repair_degenerate_stamp_os() {
   local subdir="$1"
@@ -315,7 +325,7 @@ set +e
   --disable-timezone-tools \
   CC="$TOOL_WRAP_DIR/linx-clang" \
   CXX="$TOOL_WRAP_DIR/linx-clang++" \
-  LD="$LD_BIN" \
+  LD="$TOOL_WRAP_DIR/linx-ld" \
   AR="$AR_BIN" \
   RANLIB="$RANLIB_BIN" \
   NM="$NM_BIN" \

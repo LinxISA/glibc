@@ -20,6 +20,7 @@ BASE_LOG="${GLIBC_G1A_LOG:-$LOG_DIR/03-make.log}"
 G1B_BUILD_LOG="${G1B_BUILD_LOG:-$LOG_DIR/g1b-build.log}"
 G1B_RETRY_LOG="${G1B_RETRY_LOG:-$LOG_DIR/g1b-build.retry.log}"
 G1B_READELF_LOG="${G1B_READELF_LOG:-$LOG_DIR/g1b-readelf.log}"
+G1B_IDENTITY_LOG="${G1B_IDENTITY_LOG:-$LOG_DIR/g1b-identity.log}"
 
 mkdir -p "$LOG_DIR"
 : > "$SUMMARY"
@@ -140,8 +141,21 @@ if ! "$READELF_BIN" -h "$artifact" >"$G1B_READELF_LOG" 2>&1; then
   exit 5
 fi
 
+artifact_args=(--artifact "$artifact" --artifact "$BUILD_DIR/elf/ld.so")
+if [[ -f "$BUILD_DIR/libc.so" && "$artifact" != "$BUILD_DIR/libc.so" ]]; then
+  artifact_args+=(--artifact "$BUILD_DIR/libc.so")
+fi
+if ! python3 "$GLIBC_ROOT/tools/linx/check_pto_isa_identity.py" \
+    "${artifact_args[@]}" >"$G1B_IDENTITY_LOG" 2>&1; then
+  echo "[G1b] status: blocked" | tee -a "$SUMMARY"
+  echo "[G1b] classification: pto_identity_mismatch" | tee -a "$SUMMARY"
+  echo "[G1b] identity_log: $G1B_IDENTITY_LOG" | tee -a "$SUMMARY"
+  exit 6
+fi
+
 echo "[G1b] status: pass" | tee -a "$SUMMARY"
 echo "[G1b] classification: shared_libc_so_built" | tee -a "$SUMMARY"
 echo "[G1b] artifact: $artifact" | tee -a "$SUMMARY"
 echo "[G1b] readelf_log: $G1B_READELF_LOG" | tee -a "$SUMMARY"
+echo "[G1b] identity_log: $G1B_IDENTITY_LOG" | tee -a "$SUMMARY"
 echo "ok: $SUMMARY"
